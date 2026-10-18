@@ -1,6 +1,6 @@
 # Elsewhere feature coverage
 
-Audit date: 18 October 2026. Baseline: `src/data.js`, `src/engine.js`, `src/systems.js` and the browser controls in `src/app.js`. This is an implementation audit of the local prototype, not a claim of full BitLife parity. Research is a nonexhaustive survey; the commercial game varies by version, platform and purchased content.
+Audit date: 18 October 2026. Baseline: `src/data.js`, `src/engine.js`, `src/systems.js`, `src/minigames.js`, `src/game-session.js` and the browser controls in `src/app.js`. This is an implementation audit of the local prototype, not a claim of full BitLife parity. Research is a nonexhaustive survey; the commercial game varies by version, platform and purchased content.
 
 **Implemented** means a functioning state transition and its surrounding core loop exist. **Simplified** means a playable analogue exists but important depth is absent. **Backlog** means the actual system is absent, even when a related title, possession or generic action exists. A source describing a commercial feature does not prove that feature exists in Elsewhere.
 
@@ -29,8 +29,10 @@ Audit date: 18 October 2026. Baseline: `src/data.js`, `src/engine.js`, `src/syst
 | Property and possessions | Simplified | Twenty-seven property, vehicle, boat, aircraft, jewellery and collectible entries; purchase, sale, upkeep and repair | Fixed catalogue, no generated listings, dealers, negotiation, customisation or item provenance |
 | Financial accounting | Implemented | Cash, unsecured debt, secured debt, income, tax, expenses and net worth; annual report | One fictional economy; aggregate annual reports exclude in-year action cashflows |
 | Loans | Simplified | Income-based borrowing limit and manual debt repayment; annual interest | No credit score, instalment schedule, bankruptcy or default proceeding; see balance caveats below |
-| Crime and prison | Simplified | Eight abstract offences, heat, skill, arrest, sentence, prison work/study/exercise, appeal, parole, escape and expungement | Interactive escape puzzle is in development and awaits integration verification; trial evidence, lawyer roster, prison gangs and recapture remain absent |
-| Gambling | Simplified | Casino wager, sports wager and lottery; stakes, payouts and addiction risk | Interactive blackjack is in development and awaits integration verification; poker, slots and a horse roster remain absent |
+| Crime and prison | Simplified | Eight abstract offences, heat, skill, arrest, sentence, prison work/study/exercise, appeal, parole, interactive escape and expungement | Trial evidence, lawyer roster, prison gangs and recapture remain absent |
+| Prison escape puzzle | Implemented | Three solvable six-by-six maps; wall validation, directional/keyboard control, a deterministic pursuing guard, saved session and release/sentence consequences | One guard rule and one grid size; no difficulty tiers or procedurally generated maps |
+| Gambling | Simplified | Interactive blackjack, abstract casino/sports wagers and lottery; stakes, payouts and addiction risk | Poker, slots and a horse roster remain absent |
+| Blackjack game | Implemented | Seeded fifty-two-card deck, hit/stand, soft aces, dealer standing on soft seventeen, natural 3:2 payout, pushes, busts and cash settlement | No split, double down, insurance, surrender or multiplayer table |
 | Death and generations | Simplified | Age/health mortality, cause of death, remembered life, heirs, estate calculation and child continuation | Estate becomes cash; no item-by-item heirlooms, independent child histories, estate tax or cemetery collection |
 | Achievements | Implemented | Twenty-two original checks and visible goals | No copied achievement/ribbon set; no challenge vault or rotating challenge engine |
 | Saves and export | Implemented | Twelve browser save slots, validated JSON import/export, Markdown journal export and single-step undo | No cloud sync, multi-device account or twenty-year rewind history |
@@ -73,7 +75,7 @@ The [official store release notes](https://apps.apple.com/us/app/bitlife-life-si
 | Cult/community organisation | Backlog | No organisation simulation | Membership, doctrine, facilities, loyalty, recruitment, finances and consequences |
 | Secret agency | Backlog | No agency simulation | Recruits, training, equipment, missions, intelligence, adversaries and agency costs |
 | Zoo | Backlog | Pet adoption does not constitute zoo management | Species roster, enclosures, welfare, breeding, staffing, visitors and conservation |
-| Casino ownership | Backlog | Playing a cash wager does not constitute operating a casino | Game rooms, staff, amenities, clientele, operating margin and interactive casino games |
+| Casino ownership | Backlog | Interactive blackjack and cash wagers are player activities only | Game rooms, staff, amenities, clientele and operating margin; other interactive casino games |
 | Luxury lifestyle | Simplified | Expensive property, cars, jewellery, boats and aircraft | Islands, bespoke services, item customisation and dedicated luxury encounters |
 | Racing | Backlog | Cars and a generic sports bet are adjacent only | Garages, modifications, racing licences, tracks, opponents, records and driving mechanics |
 | Seasonal events and challenge vault | Backlog | Original static achievements only | Scenario definitions, eligibility/progress tracking, rotating goals and persistent reward inventory |
@@ -95,6 +97,10 @@ The [community expansion index](https://bitlife-life-simulator.fandom.com/wiki/C
 
 No completion percentage is supplied: counting broad labels as equal to multi-system expansions would overstate coverage. Future changes should update this matrix only after the relevant state, actions, annual effects, UI and acceptance criteria exist.
 
-### Integration work awaiting verification
+### Verified interactive sessions
 
-Interactive blackjack and a prison escape puzzle are being added alongside this audit. Until their rules, state transitions, cash/sentence consequences, UI and tests are verified together, they remain pending rather than completed entries. Blackjack play would deepen gambling; it would still not implement casino ownership. An escape puzzle would deepen imprisonment; it would still not implement a complete justice or prison-gang system.
+Interactive blackjack and the prison escape puzzle have been verified through thirteen pure game-rule tests, thirteen session integration tests and browser play. The blackjack smoke run committed a hundred-dollar stake, reloaded and resumed the same cards, then hit/stood and settled the correct hundred-dollar net win. The escape smoke run solved a grid past its guard in twelve moves and released the character. Search tests verify all three authored maps are solvable.
+
+Sessions save their kind, seed, stake and move history. Reload/import reconstructs the same game; moves and outcomes commit to the life save. Active sessions block other actions and birthdays. Starting blackjack consumes a yearly allowance and commits the stake before showing cards: at most three hands per year, with whole-dollar stakes from ten to one million and sufficient available cash. Leaving forfeits the stake. Escape is limited to one attempt per year; capture or abandoning the attempt adds three years, costs twelve health and ten happiness. Successful escape releases the character and adds heat. A session accepts at most two hundred recorded moves, while wall-blocked moves consume no turn.
+
+These are implemented interactive mechanics within broader simplified gambling/prison systems. They do not implement casino ownership, a full justice simulation or multiple prison difficulty levels.

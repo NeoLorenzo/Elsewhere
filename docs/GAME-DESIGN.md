@@ -25,16 +25,17 @@ The target feeling is curiosity about the next year. Planning should matter, cha
 - `data.js` owns authored definitions: twenty countries, name pools, eighty-five jobs, twenty-eight majors, twenty-seven assets, twelve special career records, ninety-two events and twenty-two achievements.
 - `engine.js` owns seeded randomness, creation, annual updates, event resolution, net worth, normalisation, death, inheritance and achievement checks.
 - `systems.js` owns action descriptors and atomic action transactions. It imports data and engine helpers, validates at execution time, applies costs/results and logs outcomes.
+- `minigames.js` owns pure deterministic blackjack and prison-grid rules; `game-session.js` validates session entry, reconstructs moves and settles money or prison consequences into life state.
 - `app.js` renders state, requests actions, manages dialogs and persists browser saves. It must not independently award money, skills or career progress.
 - `server.js` serves the project locally with Node. Runtime gameplay needs no package dependencies or remote game service.
 
-The shared state has version, identity, seed/RNG, age/year, alive/death fields, stats, skills, cash/debt, education, employment, contacts, assets, investments, company, special career, prison, medical conditions, licences, social audience, journal, achievements, history, annual accounting, pending event and generation/ancestor fields. Save format changes require explicit migration rather than silently discarding meaningful progress.
+The shared state has version, identity, seed/RNG, age/year, alive/death fields, stats, skills, cash/debt, education, employment, contacts, assets, investments, company, special career, prison, medical conditions, licences, social audience, journal, achievements, history, annual accounting, pending event, optional active minigame and generation/ancestor fields. Save format changes require explicit migration rather than silently discarding meaningful progress.
 
 **Current determinism:** equal seeds, equal state and equal actions produce equal simulation results. Starting a life without a supplied seed uses a fresh seed. Randomness is advanced in state, allowing save/resume to preserve the sequence. Presentation randomness must not advance the gameplay generator.
 
 ## Annual turn order
 
-The current birthday transaction copies state and refuses to advance a dead life or a life with an unresolved event. It then:
+The current birthday transaction copies state and refuses to advance a dead life or a life with an unresolved event or active minigame. It then:
 
 1. Increments age and calendar year, resets yearly action counts and records the birthday.
 2. Progresses education and ages contacts, including bond drift and mortality.
@@ -96,7 +97,11 @@ Net worth equals cash minus unsecured debt, plus assets minus mortgages, plus in
 
 **Current crime:** offences trade reward against a risk reduced by skill and increased by heat. Arrest sets a term, increases the record and ends employment/special employment. In prison, ordinary categories are blocked; work, study, exercise, appeals, parole and escape supply choices. Serving a term records release. Escape does not yet create an ongoing pursuit/recapture simulation.
 
-**Integration in progress:** interactive blackjack and a prison escape puzzle are being developed. Blackjack must reserve/deduct its stake once, handle hit/stand and dealer resolution, and settle each session once. Escape must validate each movement against the actual grid and resolve success/failure into the prison state once. Both need session persistence or an explicit cancellation rule so refresh/undo cannot create duplicate payouts or erase penalties. These additions are pending verification, not baseline completion claims.
+**Current interactive blackjack:** a seeded fifty-two-card deck deals player/dealer/player/dealer. The player can hit or stand; aces count as eleven or one to avoid a bust, and the dealer stands on all seventeen. Two-card natural wins pay three-to-two profit; ordinary wins pay one-to-one profit; pushes return the stake; losses return nothing. The whole-dollar stake must be between ten and one million and affordable. It is deducted before cards appear, and settlement clears the session so it cannot pay twice. Entry is limited to free adults and three hands per year. Leaving the table forfeits the committed stake. Splitting, double down, insurance, surrender and other table games are absent.
+
+**Current interactive escape:** a seeded selection chooses one of three authored, solvable six-by-six maps. The player moves orthogonally toward the exit while a guard follows one shortest-path step after each valid move, using stable directional tie-breaking. Walls block movement without consuming a turn; touching the guard loses, reaching the exit wins. A win sets the sentence to zero, records release/escape and increases heat. Capture or abandonment adds three years and reduces health by twelve and happiness by ten, potentially causing death if health reaches zero. Entry requires an existing sentence and is limited to one attempt per year. There is one grid size and guard rule, with no difficulty tiers or generated map catalogue.
+
+**Current session persistence:** saves retain game kind, seed, stake and recorded moves; reconstruction reproduces the same cards or positions after reload/import. Active sessions block birthdays, ordinary actions and event resolution until completed or explicitly forfeited. A two-hundred-recorded-move ceiling bounds replay size. Thirteen pure-rule tests and thirteen integration tests passed; browser verification resumed the same blackjack cards after reload, settled a correct net win and solved an escape grid to release the character. These verified games deepen the existing systems without constituting complete gambling, casino ownership or justice simulations.
 
 **Current health:** explicit activities improve health while ageing, conditions and risky choices reduce it. Nightlife and gambling can introduce addiction strings; medical care, therapy and rehabilitation act on limited condition rules. Mortality depends on age bands, very low health and a hard age limit of one hundred twenty. Death can also occur after health reaches zero during an event or action. The health system lacks a broader disease catalogue and condition-specific timelines.
 
@@ -113,7 +118,7 @@ Net worth equals cash minus unsecured debt, plus assets minus mortgages, plus in
 
 ## Action, persistence and failure contract
 
-Current actions clone caller state, validate alive/pending-event/prison/age/qualification/cash conditions, debit cost, execute, record a count and journal entry, and check achievements. Validation failures return unchanged state and a readable reason. A valid probabilistic attempt may fail while still consuming cost and yearly allowance. Every year has a hundred-action ceiling, per-action limits, eight job applications and one emigration. These caps are implementation choices subject to balance review.
+Current actions clone caller state, validate alive/pending-event/active-game/prison/age/qualification/cash conditions, debit cost, execute, record a count and journal entry, and check achievements. Validation failures return unchanged state and a readable reason. A valid probabilistic attempt may fail while still consuming cost and yearly allowance. Every year has a hundred-action ceiling, per-action limits, eight job applications and one emigration. Minigame entry also counts toward that ceiling, with three blackjack hands and one escape attempt per year. These caps are implementation choices subject to balance review.
 
 Browser storage retains twelve recent lives. Save export contains versioned JSON; import normalises and bounds fields. The UI can export the journal as Markdown. User-provided text must render as text rather than HTML. A failed import must preserve the active life, and storage failure must offer export. A one-step undo checkpoint is session-local.
 

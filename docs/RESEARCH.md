@@ -26,6 +26,7 @@ All scenario dialogue, character pools, game balance, product identity and UI as
 | Property and possessions | Wealth can be held beyond cash | Property, vehicles, aircraft, boats, jewellery and collectibles; maintenance and ownership actions |
 | Financial strategy | Investing, businesses and loans expand wealth paths | Investment categories, business management, liabilities, annual accounting and net worth |
 | Crime and justice | Criminal choices can lead to imprisonment | Abstract risk/reward crime actions, arrest, sentences, prison choices and reintegration |
+| Interactive side activities | Community update history identifies blackjack and a prison escape minigame | Implemented original blackjack rules and a guard/grid escape puzzle; details and verification below |
 | Fame and audience | Entertainment and creator careers can build a public profile | Fame stat, followers, posts and reputation events |
 | Migration | Location changes can alter opportunities | Emigration, cities and fictional tax/cost multipliers |
 | Death and inheritance | Full lives end and family stories can continue | Cause of death, life summary, achievement checks, descendants and inheritance |
@@ -40,6 +41,12 @@ The original content module contains twenty locations with several selectable ci
 
 Original content priorities are varied everyday moments, meaningful tradeoffs and occasional absurdity. Ethical choices need not always yield cash, expensive choices need not always yield happiness, and a peaceful life should provide as much narrative texture as fame or crime. Young characters receive school and family scenarios; adults receive financial and workplace consequences; older characters retain learning, community and legacy choices.
 
+## Verified interactive games
+
+The [community update history](https://bitlife-life-simulator.fandom.com/wiki/Updates) identifies blackjack and escape puzzles as established genre features. Elsewhere implements original versions with pure deterministic rules and separate life-state settlement. Blackjack supports hit/stand, soft aces, dealer standing on soft seventeen, two-card naturals paying three-to-two, pushes and busts. Escape has three authored solvable six-by-six maps with walls, an exit and one shortest-path pursuing guard. The maps share a grid size and guard rule; there are no prison difficulty tiers. Blackjack does not support splitting or doubling down.
+
+Saved sessions preserve the seed and move history so refresh/import resumes the same cards or map. Stakes and yearly allowances commit on entry, and other life actions pause until the session ends. Blackjack permits three hands per year; leaving loses the stake. Escape permits one attempt per year; capture or abandonment adds three years and applies the health/happiness penalty. A two-hundred-move replay limit bounds each session. Thirteen rule tests, thirteen integration tests and browser play verified rules, save/resume and correct cash/release outcomes. This is evidence of these two implemented games, not of casino ownership, a complete prison simulation or all side activities.
+
 ## Depth backlog and parity limits
 
 The existing commercial game has years of updates and many expansion-specific subsystems. Faithful genre structure is achievable in this project; exhaustive content and balancing parity would require sustained implementation, playtesting and a complete versioned feature audit. The following deserve their own future specifications rather than being implied by a generic action:
@@ -53,6 +60,6 @@ The existing commercial game has years of updates and many expansion-specific su
 - Per-property tenants, leases, repairs, financing schedules and collectible authenticity.
 - Detailed medical conditions, addiction/recovery, reproductive choices, pets, royalty and military deployments.
 - Granular social platforms, interactions, scandals, product sponsorships and seasonal challenges.
-- Puzzle-based side activities, scenario scripting, accessibility settings, localisation and mobile packaging.
+- Additional side activities beyond blackjack and escape, scenario scripting, formal accessibility audits, localisation and mobile packaging.
 
-No claim is made that these detailed systems already exist. Implement the shared annual loop first, preserve deterministic saves, validate every action in the simulation layer and add deeper systems against measurable acceptance tests.
+No claim is made that these detailed systems already exist. Build on the shared annual loop, preserve deterministic saves, validate every action in the simulation layer and add deeper systems against measurable acceptance tests.
