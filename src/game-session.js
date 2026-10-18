@@ -1,5 +1,6 @@
 import { random, clamp, addLog, checkAchievements } from './engine.js';
 import { createBlackjack, blackjackMove, createEscape, escapeMove, handValue } from './minigames.js';
+import { ensureCharacter, reconcileCharacter } from './character.js';
 
 const money = n => `$${Math.round(n).toLocaleString('en-US')}`;
 
@@ -15,6 +16,8 @@ export function currentGame(state) {
 }
 
 function finish(state,game,forfeit=false) {
+  ensureCharacter(state, { seed: state.seed });
+  const beforeStats = { ...state.stats };
   const session=state.minigame;
   const kind=session.kind;
   let message;
@@ -38,6 +41,7 @@ function finish(state,game,forfeit=false) {
       message=`${forfeit?'You abandoned the escape and were discovered.':'The guard caught you.'} Three years were added to your sentence.`;
     }
     addLog(state,'crime','An escape attempt',message);
+    reconcileCharacter(state, beforeStats);
     if(state.stats.health<=0){state.alive=false;state.causeOfDeath='injuries following an escape attempt';addLog(state,'life','A life remembered',`I died at age ${state.age} from ${state.causeOfDeath}.`);}
   }
   state.minigame=null;

@@ -1,14 +1,15 @@
 {
   "name": "elsewhere-life-simulator",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "An original, local-first life simulation game",
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
+    "build": "node scripts/build-static.mjs",
     "test": "node --test",
-    "check": "node --check src/app.js && node --check src/engine.js && node --check src/systems.js && node --check src/data.js && node --check src/minigames.js && node --check src/game-session.js && node --test"
+    "check": "node --check src/app.js && node --check src/engine.js && node --check src/systems.js && node --check src/data.js && node --check src/minigames.js && node --check src/game-session.js && node --check src/character.js && node --check src/character-ui.js && node --check src/calendar.js && node --test"
   },
   "engines": { "node": ">=22" }
 }

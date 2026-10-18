@@ -1,5 +1,13 @@
 # Verification record
 
+## Character expansion — 19 October 2026
+
+The updated check suite passes **103 tests**, covering all previous systems plus personality generation, IQ/knowledge separation, calendar validation/BCE crossings, detailed profile migration, edited health components, adult growth targets, inherited profiles, appearance parsing, physique-dependent capacity and individual NPC outcomes.
+
+Browser verification created an adult born in 44 BCE with IQ 139, strength 71, height 186 cm, weight 84 kg, body fat 16.3%, curly red hair and two custom parent descriptions. The profile tabs exposed all five domains and thirty facets, eight health systems and separate knowledge. Relationship cards retained both descriptions after a source reload; opening the mother’s card showed her own IQ, body measurements, appearance and temperament.
+
+The historical calendar changes dates only; the world remains the existing modern simulation. Character scores and growth curves are synthetic game models. See [CHARACTER-MODEL.md](CHARACTER-MODEL.md).
+
 Verified 18 October 2026 against the initial playable implementation.
 
 ## Automated

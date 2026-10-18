@@ -1,4 +1,6 @@
 import { COUNTRIES, FIRST_NAMES, LAST_NAMES, EVENTS, ACHIEVEMENTS } from './data.js';
+import { ensureCharacter, reconcileCharacter, ageCharacter, personalityModifier, overallHealth, HEALTH_COMPONENTS } from './character.js';
+import { validateYear, calendarYearAtAge, advanceCalendarYear } from './calendar.js';
 
 export const clamp = (n, min = 0, max = 100) => Math.min(max, Math.max(min, Number.isFinite(Number(n)) ? Number(n) : min));
 const copy = value => structuredClone(value);
@@ -7,6 +9,33 @@ const text = (value, fallback = '', max = 160) => typeof value === 'string' ? va
 const number = (value, fallback = 0, min = 0, max = 100) => Number.isFinite(Number(value)) ? clamp(Number(value), min, max) : fallback;
 const list = (value, max = 1000) => Array.isArray(value) ? value.slice(0, max) : [];
 const statNames = ['happiness', 'health', 'smarts', 'looks', 'discipline', 'karma', 'fame'];
+const profileKeys = ['appearance', 'personality', 'attributes', 'body', 'healthProfile'];
+const profileOptions = source => Object.fromEntries(profileKeys.filter(key => source?.[key] && typeof source[key] === 'object' && !Array.isArray(source[key])).map(key => [key, copy(source[key])]));
+const birthAt = (year, age) => calendarYearAtAge(year, -age);
+
+function ensureHuman(entity, year, options = {}) {
+  if (entity.role === 'pet' || entity.species) return entity;
+  entity.birthYear = validateYear(entity.birthYear, birthAt(year, entity.age));
+  ensureCharacter(entity, options);
+  return entity;
+}
+
+function applyStats(entity, patch) {
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) return;
+  for (const key of statNames) if (typeof patch[key] === 'number' && Number.isFinite(patch[key])) entity.stats[key] = clamp(patch[key]);
+}
+
+function initializeCharacters(state, options = {}) {
+  const parents = state.relationships.filter(person => ['mother', 'father', 'parent'].includes(person.role));
+  for (const parent of parents) {
+    const patch = options.parents?.[parent.role] || {};
+    if (patch.age !== undefined) parent.age = Math.floor(number(patch.age, parent.age, 16, 160));
+    if (typeof patch.name === 'string' && patch.name.trim()) parent.name = text(patch.name);
+    parent.birthYear = birthAt(state.year, parent.age);
+    ensureHuman(parent, state.year, { ...profileOptions(patch), seed: state.seed });
+  }
+  ensureHuman(state, state.year, { ...profileOptions(options), parents, seed: state.seed });
+}
 
 function seedValue(seed) {
   if (Number.isFinite(Number(seed)) && seed !== '' && seed != null) return Number(seed) >>> 0;
@@ -50,10 +79,12 @@ export function createLife(options = {}) {
   const gender = ['female', 'male', 'neutral'].includes(options.gender) ? options.gender : 'neutral';
   const age = Math.floor(number(options.age, 0, 0, 120));
   const country = countryFor(options.country);
+  const birthYear = options.birthYear === undefined ? birthAt(2026, age) : validateYear(options.birthYear);
+  if (Math.abs(birthYear) > Number.MAX_SAFE_INTEGER - 256) throw new RangeError('Choose a birth year with at least 256 years of safe calendar headroom.');
   const state = {
     version: 1, id: `life-${seed.toString(36)}`, seed, rng: seed, firstName: '', lastName: '', gender,
     country: country?.id || 'uk', city: text(options.city) || (country?.cities?.includes('London') ? 'London' : country?.cities?.[0] || 'London'),
-    age, year: 2026, alive: true, causeOfDeath: null,
+    age, birthYear, year: calendarYearAtAge(birthYear, age), alive: true, causeOfDeath: null,
     stats: { happiness: 75, health: 90, smarts: 50, looks: 50, discipline: 50, karma: 65, fame: 0 },
     cash: 0, debt: 0, education: educationAt(age), job: null, relationships: [], assets: [], investments: [],
     business: null, specialCareer: null, prison: { years: 0, record: 0, heat: 0 },
@@ -66,10 +97,13 @@ export function createLife(options = {}) {
   state.lastName = text(options.lastName) || pick(state, LAST_NAMES);
   state.id = `life-${seed.toString(36)}-${Math.floor(random(state) * 1e8).toString(36)}`;
   for (const key of ['smarts', 'looks', 'discipline']) state.stats[key] = roll(state, 30, 85);
+  if(age<18)state.stats.smarts=Math.round(state.stats.smarts*age/18);
   state.relationships = ['mother', 'father'].map((role, index) => ({
     id: uid(state, role), name: `${pick(state, FIRST_NAMES[index ? 'male' : 'female'])} ${state.lastName}`,
     role, age: age + roll(state, 21, 37), bond: roll(state, 65, 100), alive: true, gender: index ? 'male' : 'female',
   }));
+  applyStats(state, options.stats);
+  initializeCharacters(state, options);
   addLog(state, 'life', age ? 'A new chapter' : 'Hello, world', age
     ? `My story begins at age ${age} in ${state.city}, ${country?.name || state.country}.`
     : `I was born in ${state.city}, ${country?.name || state.country}. My name is ${state.firstName} ${state.lastName}.`);
@@ -156,13 +190,16 @@ function finishEducation(state) {
 }
 
 function annualEducation(state) {
+  if(state.age<5)state.stats.smarts=clamp(state.stats.smarts+1);
   if (state.age === 5 && state.education.level === 'none' && !state.education.enrolled) {
     state.education.enrolled = 'primary'; state.education.yearsLeft = 13;
     addLog(state, 'education', 'First day of school', 'I started primary school, made new friends, and learned my way around a classroom.');
   }
   if (state.education.enrolled) {
-    state.education.grades = Math.round(clamp(state.education.grades + roll(state, -7, 4) + (state.stats.discipline - 45) / 15));
-    state.stats.smarts = clamp(state.stats.smarts + roll(state, 0, 2));
+    const learning = personalityModifier(state, 'learning');
+    const aptitude = clamp((state.attributes.iq - 100) / 30, -2, 2);
+    state.education.grades = Math.round(clamp(state.education.grades + roll(state, -7, 4) + (state.stats.discipline - 45) / 15 + (learning - 1) * 6 + aptitude));
+    state.stats.smarts = clamp(state.stats.smarts + (1+roll(state, 0, 2)) * learning);
     finishEducation(state);
   }
 }
@@ -174,9 +211,11 @@ function annualRelationships(state) {
     person.bond = Math.round(clamp(person.bond + roll(state, -5, 2)));
     const pet = person.role === 'pet';
     if (pet) person.health = clamp((person.health ?? 80) - roll(state, person.age > 10 ? 3 : 0, person.age > 10 ? 10 : 4));
-    const risk = pet ? person.age > 16 ? .22 : person.age > 10 ? .08 : .006
+    if(!pet&&person.healthProfile&&person.age>45){const loss=(person.age>75?.8:.2)/personalityModifier(person,'recovery');for(const component of HEALTH_COMPONENTS)person.healthProfile[component.id]=clamp(person.healthProfile[component.id]-loss);}
+    const baseRisk = pet ? person.age > 16 ? .22 : person.age > 10 ? .08 : .006
       : person.age > 100 ? .3 : person.age > 85 ? .09 : person.age > 70 ? .025 : .001;
-    if (person.age >= (pet ? 22 : 115) || (pet && person.health <= 0) || random(state) < risk) {
+    const risk=pet?baseRisk:baseRisk*clamp(1+(60-overallHealth(person))/100,.65,1.65);
+    if (person.age >= (pet ? 22 : 115) || (pet ? person.health <= 0 : overallHealth(person)<=0) || random(state) < risk) {
       person.alive = false;
       state.stats.happiness = clamp(state.stats.happiness - (person.bond > 60 ? 18 : 7));
       addLog(state, 'relationships', 'A goodbye', `My ${person.role} ${person.name} died at the age of ${person.age}.`);
@@ -194,7 +233,7 @@ function annualFinances(state, incarcerated) {
   let income = 0, tax = 0, expenses = 0;
   if (state.job && !incarcerated) {
     state.job.years++;
-    state.job.performance = Math.round(clamp(state.job.performance + roll(state, -7, 5) + (state.stats.discipline - 50) / 20));
+    state.job.performance = Math.round(clamp(state.job.performance + roll(state, -7, 5) + (state.stats.discipline - 50) / 20 + (personalityModifier(state, 'work') - 1) * 8 + clamp((state.attributes.iq - 100) / 50, -1, 1)));
     if (state.job.performance < 12 && random(state) < .6) {
       addLog(state, 'career', 'Dismissed', `I lost my job as ${state.job.title} after a difficult year at work.`);
       state.job = null; state.stats.happiness = clamp(state.stats.happiness - 12);
@@ -284,7 +323,12 @@ function endLife(state, cause) {
 export function ageUp(input) {
   const state = copy(input);
   if (!state.alive || state.pendingEvent || state.minigame) return state;
-  state.age++; state.year++; state.actionCounts = {};
+  ensureHuman(state, state.year, { seed: state.seed });
+  for (const person of state.relationships) ensureHuman(person, state.year, { seed: state.seed });
+  const beforeStats = copy(state.stats);
+  const personStats = new Map(state.relationships.map(person => [person.id, copy(person.stats || {})]));
+  const previousAge = state.age;
+  state.age++; state.year = advanceCalendarYear(state.year); state.actionCounts = {};
   addLog(state, 'life', `Age ${state.age}`, `Another year of my life began in ${state.city}.`);
   const incarcerated = state.prison.years > 0;
   annualEducation(state);
@@ -299,12 +343,21 @@ export function ageUp(input) {
     } else addLog(state, 'crime', 'Time inside', `I have ${state.prison.years} year${state.prison.years === 1 ? '' : 's'} left to serve.`);
   }
   state.prison.heat = Math.max(0, state.prison.heat - 8);
-  if (state.age > 45) state.stats.health = clamp(state.stats.health - (state.age > 75 ? roll(state, 1, 5) : roll(state, 0, 2)));
-  if (state.flags.healthyDiet) state.stats.health = clamp(state.stats.health + 2);
+  const recovery = personalityModifier(state, 'recovery');
+  if (state.age > 45) state.stats.health = clamp(state.stats.health - (state.age > 75 ? roll(state, 1, 5) : roll(state, 0, 2)) / recovery);
+  if (state.flags.healthyDiet) state.stats.health = clamp(state.stats.health + 2 * recovery);
   state.stats.happiness = clamp(state.stats.happiness + roll(state, -3, 3));
   if (state.conditions.length) state.stats.health = clamp(state.stats.health - Math.min(12, state.conditions.length * 2));
   if (state.social.followers) state.social.followers = Math.round(Math.max(0, state.social.followers * (.97 + random(state) * .08) + state.stats.fame * 3));
   if (!state.specialCareer) state.stats.fame = clamp(state.stats.fame - 1);
+  const zeroHealth = state.stats.health <= 0;
+  ageCharacter(state, previousAge);
+  reconcileCharacter(state, beforeStats);
+  if (zeroHealth && state.stats.health > 0) { const health = state.stats.health; state.stats.health = 0; reconcileCharacter(state, { health }); }
+  for (const person of state.relationships) if (person.alive && person.role !== 'pet' && !person.species) {
+    ageCharacter(person, person.age - 1);
+    reconcileCharacter(person, personStats.get(person.id) || {});
+  }
   const mortality = state.age >= 110 ? .24 : state.age >= 95 ? .09 : state.age >= 80 ? .035 : state.age >= 65 ? .009 : .0004;
   const healthRisk = state.stats.health < 10 ? .2 : state.stats.health < 25 ? .04 : 0;
   if (state.age >= 120 || state.stats.health <= 0 || random(state) < mortality + healthRisk) {
@@ -324,6 +377,8 @@ export function ageUp(input) {
 export function resolveEvent(input, index) {
   const state = copy(input);
   if (!state.alive || state.minigame || !state.pendingEvent || !Number.isInteger(index) || !state.pendingEvent.choices[index]) return state;
+  ensureHuman(state, state.year, { seed: state.seed });
+  const beforeStats = copy(state.stats);
   const event = state.pendingEvent, choice = event.choices[index];
   for (const [key, value] of Object.entries(choice.effects || {})) {
     if (!Number.isFinite(value)) continue;
@@ -337,12 +392,14 @@ export function resolveEvent(input, index) {
   addLog(state, event.category || 'life', event.title, `${choice.label}. ${choice.result || ''}`);
   state.history.push({ type: 'event', id: event.id, age: state.age, choice: index });
   state.pendingEvent = null;
+  reconcileCharacter(state, beforeStats);
   if (state.stats.health <= 0) endLife(state, 'a serious health crisis');
   checkAchievements(state);
   return state;
 }
 
 export function continueLegacy(input, childId) {
+  input = normalizeState(input);
   if (input.alive) throw new Error('The current life must end before continuing a legacy.');
   const children = living(input, 'child');
   const namedHeir = children.find(person => person.id === input.flags.heir);
@@ -350,7 +407,8 @@ export function continueLegacy(input, childId) {
   if (!child) throw new Error('Choose a living child to continue the family story.');
   const state = createLife({ seed: `${input.seed}:${child.id}:${input.generation}`, firstName: child.name.split(' ')[0],
     lastName: child.name.split(' ').slice(1).join(' ') || input.lastName, country: input.country, city: input.city,
-    age: child.age, gender: child.gender });
+    age: child.age, birthYear: child.birthYear, gender: child.gender, ...profileOptions(child), stats: child.stats });
+  state.id = child.id;
   state.year = input.year;
   const supportBenefit = Math.min(20, (Number(child.educationSupport) || 0) * 2);
   state.stats.smarts = clamp(state.stats.smarts + supportBenefit);
@@ -358,12 +416,13 @@ export function continueLegacy(input, childId) {
   state.cash = money(namedHeir ? namedHeir.id === child.id ? Math.max(0, netWorth(input)) : 0 : Math.max(0, netWorth(input)) / children.length);
   state.generation = input.generation + 1;
   state.ancestors = [...copy(input.ancestors || []), { name: `${input.firstName} ${input.lastName}`, age: input.age,
-    year: input.year, netWorth: netWorth(input), causeOfDeath: input.causeOfDeath }].slice(-100);
+    birthYear: input.birthYear, year: input.year, netWorth: netWorth(input), causeOfDeath: input.causeOfDeath }].slice(-100);
   state.relationships = input.relationships.filter(r => r.id !== child.id && ['child', 'spouse', 'partner', 'fiancé'].includes(r.role)).map(r => ({
     ...copy(r), role: r.role === 'child' ? 'sibling' : 'parent', bond: Math.round(clamp(r.bond * .8)),
   }));
   state.relationships.unshift({ id: input.id, name: `${input.firstName} ${input.lastName}`, age: input.age, alive: false,
-    role: 'parent', gender: input.gender, bond: child.bond });
+    birthYear: input.birthYear, role: 'parent', gender: input.gender, bond: child.bond, ...profileOptions(input) });
+  for (const person of state.relationships) ensureHuman(person, state.year, { seed: state.seed });
   state.achievements = [...input.achievements];
   state.journal = []; state.flags.logSequence = 0;
   addLog(state, 'life', 'The next generation', `I am ${state.firstName} ${state.lastName}, age ${state.age}. I inherited ${state.cash.toLocaleString('en-US')} and carry my family's story forward.`);
@@ -383,9 +442,10 @@ export function normalizeState(input) {
     throw new Error('Unsupported or incomplete save file.');
   }
   const state = createLife({ seed: raw.seed, firstName: raw.firstName, lastName: raw.lastName, gender: raw.gender,
-    country: raw.country, city: raw.city, age: raw.age });
+    country: raw.country, city: raw.city, age: raw.age,
+    birthYear: validateYear(raw.birthYear, birthAt(validateYear(raw.year, 2026), Math.floor(number(raw.age, 0, 0, 120)))) });
   state.id = text(raw.id, state.id, 100); state.seed = seedValue(raw.seed); state.rng = number(raw.rng, state.seed, 0, 0xffffffff) >>> 0;
-  state.year = Math.floor(number(raw.year, 2026, 1900, 10000));
+  state.year = calendarYearAtAge(state.birthYear, state.age);
   state.alive = raw.alive !== false; state.causeOfDeath = state.alive ? null : text(raw.causeOfDeath, 'natural causes');
   for (const key of statNames) state.stats[key] = number(raw.stats[key], state.stats[key]);
   state.cash = money(number(raw.cash, 0, 0, 1e15)); state.debt = money(number(raw.debt, 0, 0, 1e15));
@@ -402,6 +462,8 @@ export function normalizeState(input) {
     id: text(r.id, `person-${i}`, 100), name: text(r.name, 'Unknown person'), role: text(r.role, 'friend', 40),
     age: Math.floor(number(r.age, 18, 0, 160)), bond: number(r.bond, 50), alive: r.alive !== false,
     gender: ['male', 'female', 'neutral'].includes(r.gender) ? r.gender : 'neutral',
+    ...(r.role !== 'pet' ? { birthYear: validateYear(r.birthYear, birthAt(state.year, Math.floor(number(r.age, 18, 0, 160)))), ...profileOptions(r) } : {}),
+    ...(r.stats && typeof r.stats === 'object' && !Array.isArray(r.stats) ? { stats: Object.fromEntries(statNames.filter(key => typeof r.stats[key] === 'number' && Number.isFinite(r.stats[key])).map(key => [key, clamp(r.stats[key])])) } : {}),
     ...(r.role === 'pet' ? { species: text(r.species, 'dog', 40), health: number(r.health, 80) } : {}),
     ...(r.role === 'child' ? { educationSupport: Math.floor(number(r.educationSupport, 0, 0, 100)) } : {}),
   }));
@@ -427,13 +489,13 @@ export function normalizeState(input) {
   state.licenses = list(raw.licenses, 30).filter(c => typeof c === 'string').map(c => text(c, '', 50));
   state.social = { followers: Math.floor(number(raw.social?.followers, 0, 0, 1e12)), posts: Math.floor(number(raw.social?.posts, 0, 0, 1e9)) };
   state.journal = list(raw.journal, 1800).filter(j => j && typeof j === 'object').map((j, i) => ({
-    id: text(j.id, `log-${i}`, 150), age: Math.floor(number(j.age, 0, 0, 160)), year: Math.floor(number(j.year, 2026, 1900, 10000)),
+    id: text(j.id, `log-${i}`, 150), age: Math.floor(number(j.age, 0, 0, 160)), year: validateYear(j.year, calendarYearAtAge(state.birthYear, Math.floor(number(j.age, 0, 0, 160)))),
     category: text(j.category, 'life', 40), title: text(j.title, 'Life update'), text: text(j.text, '', 3000),
   }));
   state.achievements = [...new Set(list(raw.achievements, 300).filter(id => typeof id === 'string' && ACHIEVEMENTS.some(a => a.id === id)))];
   state.history = list(raw.history, 1000).filter(h => h && typeof h === 'object').map(h => ({
     type: text(h.type, 'year', 40), id: text(h.id, '', 100), age: Math.floor(number(h.age, 0, 0, 160)),
-    year: Math.floor(number(h.year, 2026, 1900, 10000)), choice: Math.floor(number(h.choice, 0, 0, 20)),
+    year: validateYear(h.year, calendarYearAtAge(state.birthYear, Math.floor(number(h.age, 0, 0, 160)))), choice: Math.floor(number(h.choice, 0, 0, 20)),
     netWorth: money(h.netWorth), job: text(h.job, '', 160) || null,
   }));
   state.flags = {};
@@ -449,8 +511,11 @@ export function normalizeState(input) {
   }
   state.annual = Object.fromEntries(['income', 'tax', 'expenses', 'net'].map(key => [key, money(raw.annual?.[key])]));
   state.generation = Math.floor(number(raw.generation, 1, 1, 10000));
-  state.ancestors = list(raw.ancestors, 100).filter(a => a && typeof a === 'object').map(a => ({ name: text(a.name, 'Ancestor'),
-    age: Math.floor(number(a.age, 0, 0, 160)), year: Math.floor(number(a.year, 2026, 1900, 10000)), netWorth: money(a.netWorth), causeOfDeath: text(a.causeOfDeath) }));
+  state.ancestors = list(raw.ancestors, 100).filter(a => a && typeof a === 'object').map(a => {
+    const year = validateYear(a.year, state.year), age = Math.floor(number(a.age, 0, 0, 160));
+    return { name: text(a.name, 'Ancestor'), age, year, birthYear: validateYear(a.birthYear, birthAt(year, age)),
+      netWorth: money(a.netWorth), causeOfDeath: text(a.causeOfDeath) };
+  });
   const event = raw.pendingEvent;
   state.pendingEvent = null;
   if (state.alive && event && typeof event === 'object' && Array.isArray(event.choices) && event.choices.length) {
@@ -472,5 +537,28 @@ export function normalizeState(input) {
     && session.moves.every(move => typeof move === 'string' && allowedMoves.includes(move))) {
     state.minigame = { kind: session.kind, seed: session.seed >>> 0, bet: session.bet, moves: [...session.moves] };
   }
+  for (const key of profileKeys) delete state[key];
+  Object.assign(state, profileOptions(raw));
+  ensureHuman(state, state.year, { seed: state.seed });
+  for (const person of state.relationships) ensureHuman(person, state.year, { seed: state.seed });
+  return state;
+}
+
+/** Explicit character editor. Gameplay/economy/session fields are never copied from a patch. */
+export function customizeCharacter(input, patch = {}) {
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new Error('Character edits must be an object.');
+  const state = normalizeState(input);
+  const beforeStats = copy(state.stats);
+  applyStats(state, patch.stats);
+  reconcileCharacter(state, beforeStats);
+  ensureHuman(state, state.year, { ...profileOptions(patch), seed: state.seed });
+  for (const role of ['mother', 'father']) {
+    const parent = state.relationships.find(person => person.role === role);
+    const edit = patch.parents?.[role];
+    if (parent && edit && typeof edit === 'object' && !Array.isArray(edit)) ensureHuman(parent, state.year, { ...profileOptions(edit), seed: state.seed });
+  }
+  addLog(state, 'life', 'Character updated', 'I updated the details of my character and family profile.');
+  if (state.alive && state.stats.health <= 0) endLife(state, 'a serious health crisis');
+  checkAchievements(state);
   return state;
 }

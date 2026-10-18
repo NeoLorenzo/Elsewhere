@@ -1,6 +1,6 @@
 # Elsewhere game design specification
 
-Version 0.1 baseline, 18 October 2026. This document specifies an original, local-first life simulator and its progression toward a deeper game. Statements labelled **current** describe code inspected in this repository. Targets and acceptance criteria describe required outcomes for later milestones; they are not claims of completed work. See [the coverage audit](FEATURE-MATRIX.md) and [research notes](RESEARCH.md) for external inspiration and explicit gaps.
+Version 0.2 character expansion, 19 October 2026 (original baseline: 18 October 2026). This document specifies an original, local-first life simulator and its progression toward a deeper game. Statements labelled **current** describe code inspected in this repository. Targets and acceptance criteria describe required outcomes for later milestones; they are not claims of completed work. See [the coverage audit](FEATURE-MATRIX.md) and [research notes](RESEARCH.md) for external inspiration and explicit gaps.
 
 ## Product promise
 
@@ -10,7 +10,7 @@ The target feeling is curiosity about the next year. Planning should matter, cha
 
 ## Player experience
 
-1. Begin at birth or age eighteen, choose identity and location or accept random names, optionally supply a seed.
+1. Begin at birth or age eighteen, choose a birth year in BCE/CE, identity and location, appearance, parents’ descriptions, detailed attributes and personality; optionally supply a seed.
 2. Read the current life stage, school/job, cash, net worth, wellbeing and recent relationships.
 3. Explore education, career, relationships, activities, assets, finance, crime or special paths. Locked actions explain their conditions.
 4. Choose a limited set of activities. Costs and important risks should be visible before committing. Dynamic forms collect amounts or named choices.
@@ -26,6 +26,8 @@ The target feeling is curiosity about the next year. Planning should matter, cha
 - `engine.js` owns seeded randomness, creation, annual updates, event resolution, net worth, normalisation, death, inheritance and achievement checks.
 - `systems.js` owns action descriptors and atomic action transactions. It imports data and engine helpers, validates at execution time, applies costs/results and logs outcomes.
 - `minigames.js` owns pure deterministic blackjack and prison-grid rules; `game-session.js` validates session entry, reconstructs moves and settles money or prison consequences into life state.
+- `character.js` owns deterministic human profiles, thirty facets, abilities, component health and growth. `calendar.js` handles BCE/CE arithmetic without year zero.
+- `character-ui.js` renders appearance controls, character sheets and the personality radar.
 - `app.js` renders state, requests actions, manages dialogs and persists browser saves. It must not independently award money, skills or career progress.
 - `server.js` serves the project locally with Node. Runtime gameplay needs no package dependencies or remote game service.
 
@@ -49,9 +51,9 @@ This order is a reproducibility contract. A future system must state where it ru
 
 ## Stats, skills and identity
 
-All seven stats and seven skills occupy a zero-to-one-hundred range. Happiness and health are wellbeing; smarts and discipline support education/work; looks influences some social and professional chances; karma represents selected ethical/social choices; fame measures public visibility. These are fictional game abstractions and must not be presented as judgments about real people.
+The player and every human contact have thirty personality facets, eight abilities including a separate IQ estimate, height/weight/body composition and eight health components. Domain scores and overall health are derived. The seven compatibility stats and skills remain zero-to-one-hundred game ratings; the former smarts value displays as Knowledge. See [the detailed character model](CHARACTER-MODEL.md) for fields, growth, personality structure and assumptions.
 
-Current newborn defaults include seventy-five happiness and ninety health. Intelligence, looks and discipline are seeded between thirty and eighty-five. Identity selection is female, male or non-binary; names can be customised. Country and city affect story setting; countries supply fictional cost/tax multipliers. Future identity depth should let players express their character without requiring stereotyped stat penalties.
+Newborn defaults include seventy-five happiness, ninety overall health and zero learned knowledge. IQ is generated separately and remains an age-normed fictional estimate. Appearance, parent descriptions, body targets, attributes, health components and personality are editable. The historical calendar skips year zero; selecting an ancient date does not yet change modern countries, careers or world events.
 
 Skills grow through explicit practice, clubs and career development. Current lessons commonly add six to nine skill points with three uses per year; development should remain visible and should unlock meaningful new decisions. The next balance pass should introduce diminishing returns, time cost or mastery milestones before simply adding more repeated clicks.
 
@@ -59,7 +61,7 @@ Skills grow through explicit practice, clubs and career development. Current les
 
 **Current:** primary school begins at five; secondary begins at eleven; secondary finishes at eighteen. Grades change annually with discipline and chance. Study, library visits, tutoring and clubs improve development. University takes four years with twelve-thousand upfront tuition unless a scholarship applies. Graduate study takes three years and eighteen-thousand tuition; trade study takes two years and thirty-five-hundred tuition. Non-school courses require at least twenty-five grades at completion to award the qualification.
 
-The eighty-five ordinary jobs use minimum education rank and intelligence, then a probabilistic hiring test influenced by intelligence, discipline and criminal record. Adult jobs and full-time courses have basic compatibility gates. Working harder improves performance at a happiness/health cost. Good performance may generate annual raises; very poor performance can lead to dismissal. Retirement becomes available at sixty and pays a settlement plus a recurring pension.
+The eighty-five ordinary jobs use minimum education rank and knowledge, then a probabilistic hiring test influenced by knowledge, IQ, temperament, discipline and criminal record. Adult jobs and full-time courses have basic compatibility gates. Working harder improves performance at a happiness/health cost. Good performance may generate annual raises; very poor performance can lead to dismissal. Retirement becomes available at sixty and pays a settlement plus a recurring pension.
 
 **Target:** jobs belong to explicit ladders with employers and prerequisites. A doctor needs a medical path; a pilot needs the applicable licence; a judge needs legal experience. A major should affect subjects and opportunities. Entry, advancement, dismissal and career switching need distinct narratives. Education should add options without making every unqualified path unviable.
 

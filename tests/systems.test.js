@@ -62,7 +62,7 @@ test('paid actions clone state, charge once, improve skills, and enforce a yearl
   const original = structuredClone(state);
   state = take(state, 'activities:gym');
   assert.equal(state.cash, original.cash - 80);
-  assert.equal(state.skills.fitness, original.skills.fitness + 6);
+  assert.ok(state.skills.fitness > original.skills.fitness && state.skills.fitness <= original.skills.fitness + 8, 'Training improves fitness with bounded individual variation.');
   assert.equal(original.actionCounts['activities:gym'], undefined);
   state = take(state, 'activities:gym');
   state = take(state, 'activities:gym');
@@ -296,7 +296,7 @@ test('medical care, social publishing and emigration change the appropriate syst
   let state = adult();
   state.stats.health = 40;
   state = take(state, 'activities:doctor');
-  assert.equal(state.stats.health, 48);
+  assert.ok(state.stats.health >= 48 && state.stats.health <= 51, 'Medical treatment improves the aggregate and its component systems.');
   state = take(state, 'activities:socialjoin');
   state = take(state, 'activities:post');
   assert.ok(state.social.followers > 25);

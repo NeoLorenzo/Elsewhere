@@ -1,6 +1,8 @@
 import { COUNTRIES, JOBS, MAJORS, ASSETS, SPECIAL_CAREERS, FIRST_NAMES, LAST_NAMES } from './data.js';
 import { addLog, random, clamp, checkAchievements } from './engine.js';
 import { beginMiniGame } from './game-session.js';
+import { ensureCharacter, reconcileCharacter, applyCharacterAction, personalityCompatibility, personalityModifier, physicalCapacity } from './character.js';
+import { calendarYearAtAge } from './calendar.js';
 
 const CATEGORIES = ['education', 'career', 'relationships', 'activities', 'assets', 'finance', 'crime', 'special'];
 const money = value => Math.round(value).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
@@ -21,13 +23,50 @@ function change(state, changes) {
 }
 
 function skill(state, name, amount) {
-  state.skills[name] = clamp((state.skills[name] || 0) + amount);
+  const cognitive = ['music', 'acting', 'writing', 'coding'].includes(name);
+  const physical = ['fitness', 'athletics'].includes(name);
+  const factor = cognitive ? learningFactor(state) : physical ? clamp(0.85 + physicalAbility(state) * 0.003, 0.85, 1.15) * personalityModifier(state, 'work') : 1;
+  state.skills[name] = clamp((state.skills[name] || 0) + Math.round(amount * factor * 10) / 10);
 }
 
-function person(state, role, age, bond = 55) {
+const attribute = (entity, key, fallback = 50) => Number.isFinite(entity.attributes?.[key]) ? entity.attributes[key] : fallback;
+const facet = (entity, key) => entity.personality?.facets?.[key] ?? 50;
+const physicalAbility = entity => physicalCapacity(entity);
+const learningFactor = entity => clamp(1 + (attribute(entity, 'iq', 100) - 100) / 400, 0.85, 1.15) * personalityModifier(entity, 'learning');
+
+function enrichHumans(state) {
+  ensureCharacter(state, { seed: state.seed });
+  for (const entity of state.relationships) {
+    if (entity.role === 'pet' || entity.species) continue;
+    entity.birthYear ??= calendarYearAtAge(state.year, -entity.age);
+    ensureCharacter(entity, { seed: `${state.seed}:${entity.id}` });
+  }
+}
+
+function connectionGain(state, target, base) {
+  if (target.role === 'pet') return base;
+  const compatibility = personalityCompatibility(state, target);
+  const empathy = clamp(0.9 + attribute(state, 'empathy') / 500, 0.9, 1.1);
+  return Math.max(1, Math.round(base * (0.8 + compatibility / 250) * empathy * personalityModifier(state, 'social')));
+}
+
+function connectionNote(state, target) {
+  if (target.role === 'pet') return '';
+  const compatibility = personalityCompatibility(state, target);
+  if (compatibility > 75) return ' Your temperaments made it easy to connect.';
+  if (compatibility < 40) return ' You made room for your different ways of relating.';
+  if (facet(target, 'gregariousness') < 30) return ' A quiet conversation suited them well.';
+  return '';
+}
+
+function person(state, role, age, bond = 55, options = {}) {
   const gender = random(state) < 0.5 ? 'female' : 'male';
   const names = FIRST_NAMES[gender];
-  return { id: uid(state, role), name: `${names[Math.floor(random(state) * names.length)]} ${LAST_NAMES[Math.floor(random(state) * LAST_NAMES.length)]}`, role, age, bond, alive: true, gender };
+  const entity = { id: uid(state, role), name: `${names[Math.floor(random(state) * names.length)]} ${LAST_NAMES[Math.floor(random(state) * LAST_NAMES.length)]}`, role, age, bond, alive: true, gender, birthYear: calendarYearAtAge(state.year, -age) };
+  if (options.lastName) entity.name = `${entity.name.split(' ')[0]} ${options.lastName}`;
+  if (options.prefix) entity.name = `${options.prefix} ${entity.name}`;
+  ensureCharacter(entity, { seed: `${state.seed}:${entity.id}`, parents: options.parents });
+  return entity;
 }
 
 function field(name, label, value, min, max) {
@@ -47,7 +86,9 @@ function spend(state, value) {
 
 function commitCrime(state, { title, reward = 0, risk, term, karma = 8, lethal = false }) {
   const phrase=({'Shoplift':'shoplifting','Pickpocket':'pickpocketing','Commit a burglary':'committing a burglary','Steal a vehicle':'stealing a vehicle','Commit financial fraud':'committing financial fraud','Rob a bank':'robbing a bank','Assault a stranger':'assaulting a stranger','Commit murder':'committing murder','Syndicate robbery':'a syndicate robbery'})[title]||title.toLowerCase();
-  const chance = Math.max(0.04, risk - (state.skills.crime || 0) * 0.003 + state.prison.heat * 0.002);
+  const dexterity = (attribute(state, 'agility') + attribute(state, 'coordination')) / 2;
+  const physicalEdge = (dexterity - 50) * 0.0015 + (lethal ? (attribute(state, 'strength') - 50) * 0.0005 : 0);
+  const chance = clamp((risk - (state.skills.crime || 0) * 0.003 + state.prison.heat * 0.002 - physicalEdge) / personalityModifier(state, 'risk'), 0.04, 0.98);
   skill(state, 'crime', 3);
   state.prison.heat = clamp(state.prison.heat + 8);
   change(state, { karma: -karma, happiness: -2 });
@@ -80,8 +121,9 @@ function definitions(state, category) {
   const employed = () => !state.job ? 'Find a job first.' : null;
 
   if (category === 'education') {
-    add('education:study', 'Study harder', 'Improve your grades, intelligence, and discipline.', s => {
-      s.education.grades = clamp(s.education.grades + 7 + Math.floor(random(s) * 6));
+    add('education:study', 'Study harder', 'Improve your grades, knowledge, and discipline.', s => {
+      const progress = Math.round((7 + Math.floor(random(s) * 6)) * learningFactor(s));
+      s.education.grades = clamp(s.education.grades + progress);
       change(s, { smarts: 3, discipline: 3, happiness: -1 });
       return `You studied carefully. Your grades are now ${Math.round(s.education.grades)}%.`;
     }, { gate: school, cap: 3 });
@@ -91,7 +133,7 @@ function definitions(state, category) {
       return 'An afternoon of reading left you more knowledgeable and inspired.';
     }, { gate: () => ageGate(6), cap: 3 });
     add('education:tutor', 'Private tutoring', 'Pay for individual lessons to improve your grades.', s => {
-      s.education.grades = clamp(s.education.grades + 18);
+      s.education.grades = clamp(s.education.grades + Math.round(18 * learningFactor(s)));
       change(s, { smarts: 4 });
       return 'Your tutor helped you understand the subjects you had struggled with.';
     }, { cost: 400, gate: school });
@@ -112,16 +154,16 @@ function definitions(state, category) {
         s.flags.degreeInProgress = major;
         s.flags.scholarship = false;
         return `You enrolled in a four-year ${major} degree. Age up each year to progress; studying helps your grades.`;
-      }, { cost: state.flags.scholarship ? 0 : 12000, group: 'University', gate: () => adult() || (state.education.enrolled ? 'Finish or leave your current education first.' : null) || ((rank[state.education.level] || 0) < 1 ? 'Complete secondary school first.' : null) || (state.stats.smarts < 30 ? 'You need at least 30 intelligence to enter university.' : null) });
+      }, { cost: state.flags.scholarship ? 0 : 12000, group: 'University', gate: () => adult() || (state.education.enrolled ? 'Finish or leave your current education first.' : null) || ((rank[state.education.level] || 0) < 1 ? 'Complete secondary school first.' : null) || (state.stats.smarts < 30 ? 'You need at least 30 knowledge to enter university.' : null) });
     }
-    add('education:scholarship', 'Apply for a scholarship', 'Strong grades and intelligence can earn free university tuition.', s => {
+    add('education:scholarship', 'Apply for a scholarship', 'Strong grades and knowledge can earn free university tuition.', s => {
       if (random(s) < clamp((s.education.grades + s.stats.smarts) / 230, 0.1, 0.9)) {
         s.flags.scholarship = true;
         return 'Your scholarship application was accepted. Your next university degree tuition is covered.';
       }
       change(s, { happiness: -2 });
       return 'Your scholarship application was declined this year.';
-    }, { gate: () => adult() || (state.stats.smarts < 65 || state.education.grades < 70 ? 'Requires 65 intelligence and 70% grades.' : null) });
+    }, { gate: () => adult() || (state.stats.smarts < 65 || state.education.grades < 70 ? 'Requires 65 knowledge and 70% grades.' : null) });
     add('education:graduate', 'Attend graduate school', 'Earn an advanced qualification over three years.', s => {
       s.education.enrolled = 'graduate';
       s.education.yearsLeft = 3;
@@ -159,13 +201,15 @@ function definitions(state, category) {
       s.licenses.push('pilot');
       skill(s, 'coding', 5);
       return 'After ground school and flight practice, you earned your pilot licence.';
-    }, { cost: 12000, gate: () => adult() || (state.stats.smarts < 65 ? 'Requires 65 intelligence.' : null) || (state.licenses.includes('pilot') ? 'You already hold a pilot licence.' : null) });
+    }, { cost: 12000, gate: () => adult() || (state.stats.smarts < 65 ? 'Requires 65 knowledge.' : null) || (state.licenses.includes('pilot') ? 'You already hold a pilot licence.' : null) });
   }
 
   if (category === 'career') {
     for (const job of JOBS) {
       add(`career:apply:${job.id}`, job.title, `${money(job.salary)} per year · ${job.education === 'none' ? 'No qualification required' : `${job.education} education`}`, s => {
-        const chance = clamp(0.55 + (s.stats.smarts - (job.minSmarts || 0)) / 150 + (s.stats.discipline - 50) / 300 - s.prison.record * 0.06, 0.1, 0.95);
+        const preparation = 0.55 + (s.stats.smarts - (job.minSmarts || 0)) / 150 + (s.stats.discipline - 50) / 300 - s.prison.record * 0.06;
+        const reasoning = clamp((attribute(s, 'iq', 100) - 100) / 700, -0.08, 0.12);
+        const chance = clamp(preparation * personalityModifier(s, 'work') + reasoning, 0.1, 0.95);
         if (random(s) < chance) {
           s.job = { id: job.id, title: job.title, salary: job.salary, performance: 55, years: 0 };
           s.flags.retired = false;
@@ -173,7 +217,7 @@ function definitions(state, category) {
           return `You were hired as a ${job.title}. Your salary is ${money(job.salary)} per year, paid when you age up.`;
         }
         return `You interviewed for ${job.title}, but another applicant was selected.`;
-      }, { group: 'Job listings', gate: () => ageGate(job.minAge || 18) || ((rank[state.education.level] || 0) < (rank[job.education] || 0) ? `Requires ${job.education} education.` : null) || (state.stats.smarts < (job.minSmarts || 0) ? `Requires ${job.minSmarts} intelligence.` : null) || (state.job?.id === job.id ? 'You already hold this job.' : null) || (state.education.enrolled === 'university' || state.education.enrolled === 'graduate' ? 'Complete your full-time course before accepting a full-time job.' : null) });
+      }, { group: 'Job listings', gate: () => ageGate(job.minAge || 18) || ((rank[state.education.level] || 0) < (rank[job.education] || 0) ? `Requires ${job.education} education.` : null) || (state.stats.smarts < (job.minSmarts || 0) ? `Requires ${job.minSmarts} knowledge.` : null) || (state.job?.id === job.id ? 'You already hold this job.' : null) || (state.education.enrolled === 'university' || state.education.enrolled === 'graduate' ? 'Complete your full-time course before accepting a full-time job.' : null) });
     }
     add('career:parttime', 'Work a part-time shift', 'Earn extra money. Useful while studying or looking for work.', s => {
       const pay = Math.round((150 + s.age * 10) * (0.7 + random(s) * 0.6));
@@ -187,7 +231,7 @@ function definitions(state, category) {
       return `You delivered a freelance project and earned ${money(pay)}.`;
     }, { gate: () => ageGate(16), cap: 3, group: 'Work' });
     add('career:hardwork', 'Work harder', 'Improve your performance and chances of promotion at your next birthday.', s => {
-      s.job.performance = clamp(s.job.performance + 15);
+      s.job.performance = clamp(s.job.performance + Math.round(15 * personalityModifier(s, 'work')));
       change(s, { discipline: 2, happiness: -3, health: -1 });
       return `You put in extra effort. Your job performance rose to ${Math.round(s.job.performance)}%.`;
     }, { gate: employed, cap: 3, group: 'Your job' });
@@ -251,28 +295,33 @@ function definitions(state, category) {
       return `You met ${friend.name}. The two of you became friends.`;
     }, { gate: () => ageGate(5) || (living(state).filter(p => p.role === 'friend').length >= 12 ? 'You already have a full circle of friends.' : null), cap: 2 });
     add('relationships:date', 'Find a date', 'Meet a potential romantic partner.', s => {
-      if (random(s) < 0.35 + s.stats.looks * 0.005) {
-        const date = person(s, 'partner', Math.max(16, s.age + Math.floor(random(s) * 9) - 4), 60);
+      const roll = random(s);
+      const date = person(s, 'partner', Math.max(16, s.age + Math.floor(random(s) * 9) - 4), 60);
+      const affinity = personalityCompatibility(s, date);
+      const chance = clamp((0.35 + s.stats.looks * 0.005) * personalityModifier(s, 'social') + (affinity - 50) * 0.002, 0.15, 0.95);
+      if (roll < chance) {
+        date.bond = clamp(date.bond + Math.round((affinity - 50) / 5));
         s.relationships.push(date);
         change(s, { happiness: 8 });
-        return `You connected with ${date.name} and began a relationship.`;
+        return `You connected with ${date.name} and began a relationship.${connectionNote(s, date)}`;
       }
       return 'You met some new people but did not feel a romantic connection.';
     }, { cost: state.age < 18 ? 0 : 75, gate: () => ageGate(16) || (partnerOf(state) ? 'You are already in a romantic relationship.' : null), cap: 2 });
     add('relationships:datingapp', 'Use a dating app', 'A paid matchmaking service offers another chance to meet someone.', s => {
       const date = person(s, 'partner', Math.max(18, s.age + Math.floor(random(s) * 11) - 5), 55);
+      date.bond = clamp(date.bond + Math.round((personalityCompatibility(s, date) - 50) / 5));
       s.relationships.push(date);
       change(s, { happiness: 5 });
-      return `Your match with ${date.name} developed into a relationship.`;
+      return `Your match with ${date.name} developed into a relationship.${connectionNote(s, date)}`;
     }, { cost: 200, gate: () => adult() || (partnerOf(state) ? 'You are already in a romantic relationship.' : null) });
     for (const p of living(state)) {
       const prefix = `relationships:${encodeURIComponent(p.id)}`;
       const group = `${p.name} · ${p.role}`;
       add(`${prefix}:time`, p.role === 'pet' ? 'Play together' : 'Spend time together', `Strengthen your bond with ${p.name}.`, s => {
         const target = s.relationships.find(person => person.id === p.id);
-        target.bond = clamp(target.bond + 12);
+        target.bond = clamp(target.bond + connectionGain(s, target, 12));
         change(s, { happiness: 4 });
-        return `You enjoyed some quality time with ${target.name}.`;
+        return `You enjoyed some quality time with ${target.name}.${connectionNote(s, target)}`;
       }, { group, cap: 2 });
       add(`${prefix}:gift`, 'Give a gift', 'A thoughtful $100 gift can strengthen your relationship.', s => {
         s.relationships.find(person => person.id === p.id).bond = clamp(p.bond + 18);
@@ -281,21 +330,25 @@ function definitions(state, category) {
       }, { cost: 100, group });
       if (p.role !== 'pet') {
         add(`${prefix}:compliment`, 'Pay a compliment', 'Say something kind and sincere.', s => {
-          s.relationships.find(person => person.id === p.id).bond = clamp(p.bond + 6);
+          const target = s.relationships.find(person => person.id === p.id);
+          target.bond = clamp(target.bond + connectionGain(s, target, 6));
           change(s, { karma: 1 });
           return `Your kind words made ${p.name} smile.`;
         }, { group, gate: () => ageGate(3) });
         add(`${prefix}:argue`, 'Start an argument', 'Express your frustration, at the cost of your bond.', s => {
-          s.relationships.find(person => person.id === p.id).bond = clamp(p.bond - 20);
+          const target = s.relationships.find(person => person.id === p.id);
+          const intensity = clamp(0.85 + facet(target, 'anger') / 250 + facet(s, 'anger') / 500 - attribute(s, 'empathy') / 500 - (target.personality?.domains?.agreeableness ?? 50) / 500, 0.5, 1.5);
+          target.bond = clamp(target.bond - Math.round(20 * intensity));
           change(s, { happiness: -4, karma: -2 });
-          return `You argued with ${p.name}. Your relationship suffered.`;
+          return `You argued with ${p.name}. Your relationship suffered.${facet(target, 'anger') > 70 ? ' Their quick temper made it difficult to de-escalate.' : attribute(s, 'empathy') > 75 ? ' Trying to understand their feelings softened the disagreement.' : ''}`;
         }, { group });
       }
       if (['mother', 'father', 'parent'].includes(p.role)) {
         add(`${prefix}:money`, 'Ask for money', 'Your age and relationship affect your family’s willingness to help.', s => {
           const target = s.relationships.find(person => person.id === p.id);
           target.bond = clamp(target.bond - 5);
-          if (random(s) < p.bond / 140) {
+          const support = clamp(p.bond / 140 * personalityModifier(s, 'social') + (facet(target, 'altruism') - 50) / 700, 0.05, 0.9);
+          if (random(s) < support) {
             const gift = s.age < 18 ? 30 + Math.floor(random(s) * 170) : 100 + Math.floor(random(s) * 900);
             s.cash += gift;
             return `${p.name} gave you ${money(gift)}.`;
@@ -306,7 +359,7 @@ function definitions(state, category) {
       if (p.role === 'friend' && state.age >= 16 && p.age >= 16) {
         add(`${prefix}:romance`, 'Ask them out', 'Find out whether your friend shares your romantic feelings.', s => {
           const target = s.relationships.find(person => person.id === p.id);
-          if (random(s) < target.bond / 130) {
+          if (random(s) < clamp(target.bond / 130 + (personalityCompatibility(s, target) - 50) * 0.002, 0.1, 0.95)) {
             target.role = 'partner';
             change(s, { happiness: 8 });
             return `${p.name} said yes. You are now a couple.`;
@@ -317,13 +370,14 @@ function definitions(state, category) {
       }
       if (['partner', 'fiancé', 'spouse'].includes(p.role)) {
         add(`${prefix}:date`, 'Go on a date', 'Share a romantic evening together.', s => {
-          s.relationships.find(person => person.id === p.id).bond = clamp(p.bond + 16);
+          const target = s.relationships.find(person => person.id === p.id);
+          target.bond = clamp(target.bond + connectionGain(s, target, 16));
           change(s, { happiness: 6 });
           return `You and ${p.name} shared a lovely evening together.`;
         }, { cost: 150, group });
         if (p.role === 'partner') add(`${prefix}:propose`, 'Propose marriage', 'Buy an engagement ring and ask to share your future.', s => {
           const target = s.relationships.find(person => person.id === p.id);
-          if (random(s) < target.bond / 115) {
+          if (random(s) < clamp(target.bond / 115 + (personalityCompatibility(s, target) - 50) * 0.0015, 0.1, 0.96)) {
             target.role = 'fiancé';
             change(s, { happiness: 10 });
             return `${p.name} accepted your proposal. You are engaged!`;
@@ -375,8 +429,7 @@ function definitions(state, category) {
       const reproductiveAge = s.gender === 'female' ? s.age : partner.gender === 'female' ? partner.age : s.age;
       const chance = reproductiveAge < 35 ? 0.78 : reproductiveAge < 42 ? 0.45 : reproductiveAge < 50 ? 0.12 : 0.01;
       if (random(s) < chance) {
-        const child = person(s, 'child', 0, 85);
-        child.name = `${child.name.split(' ')[0]} ${s.lastName}`;
+        const child = person(s, 'child', 0, 85, { lastName: s.lastName, parents: [s, partner] });
         s.relationships.push(child);
         change(s, { happiness: 15 });
         return `Your family welcomed ${child.name}. Your child will grow older as you age up.`;
@@ -385,16 +438,14 @@ function definitions(state, category) {
       return 'You tried for a baby, but it did not happen this year.';
     }, { cost: 500, gate: () => familyGate() || (!partnerOf(state) ? 'You need a romantic partner to try for a baby.' : null), cap: 2 });
     add('relationships:adopt', 'Adopt a child', 'Complete an adoption assessment and welcome a child into your family.', s => {
-      const child = person(s, 'child', 1 + Math.floor(random(s) * 7), 70);
-      child.name = `${child.name.split(' ')[0]} ${s.lastName}`;
+      const child = person(s, 'child', 1 + Math.floor(random(s) * 7), 70, { lastName: s.lastName });
       s.relationships.push(child);
       change(s, { happiness: 12, karma: 8 });
       return `Your adoption was approved. You welcomed ${child.name}, age ${child.age}, into your family.`;
     }, { cost: 12000, gate: () => familyGate() || (state.age < 21 || state.age > 70 ? 'Adoption is available from ages 21 to 70.' : null) || (state.prison.record ? 'Your criminal record prevents adoption approval.' : null) });
     add('relationships:fertility', 'Fertility treatment', 'Specialist treatment provides a chance to have a child without a partner.', s => {
       if (random(s) < (s.age <= 40 ? 0.65 : 0.3)) {
-        const child = person(s, 'child', 0, 85);
-        child.name = `${child.name.split(' ')[0]} ${s.lastName}`;
+        const child = person(s, 'child', 0, 85, { lastName: s.lastName, parents: [s] });
         s.relationships.push(child);
         change(s, { happiness: 15 });
         return `Your fertility treatment succeeded. You welcomed ${child.name}.`;
@@ -757,7 +808,8 @@ function definitions(state, category) {
           if (s.specialCareer) s.specialCareer.performance = clamp(s.specialCareer.performance + 5);
           return result;
         }
-        const chance = clamp(0.15 + talent * 0.005 + current.performance * 0.003, 0.1, 0.93);
+        const physicalEdge = ['athlete', 'fighter', 'astronaut'].includes(current.id) ? (physicalAbility(s) - 50) * 0.002 : 0;
+        const chance = clamp((0.15 + talent * 0.005 + current.performance * 0.003) * personalityModifier(s, 'work') + physicalEdge, 0.1, 0.93);
         if (random(s) < chance) {
           const payout = Math.round((current.id === 'politician' ? 2000 : current.id === 'street_performer' ? 300 : current.id === 'director' ? 25000 : 5000) * current.level * (0.5 + talent / 100));
           current.level += 1;
@@ -792,8 +844,7 @@ function definitions(state, category) {
     }, { gate: () => state.stats.fame < 60 ? 'Requires 60 fame.' : null, group: 'Fame' });
     add('special:royalty', 'Pursue a royal marriage', 'Attend exclusive events to seek a connection with a royal household.', s => {
       if (random(s) < 0.15 + s.stats.fame * 0.003) {
-        const royal = person(s, 'spouse', s.age + 2, 65);
-        royal.name = `Royal ${royal.name}`;
+        const royal = person(s, 'spouse', s.age + 2, 65, { prefix: 'Royal' });
         s.relationships.push(royal);
         s.specialCareer = { id: 'royal', title: 'Member of the royal household', level: 1, performance: 60, earnings: 120000 };
         s.job = null;
@@ -893,6 +944,7 @@ export function performAction(state, actionId, payload = {}) {
     if (!next || !next.stats || !next.education || !next.prison) throw new Error('This save is not a valid life.');
     next.actionCounts ||= {};
     next.flags ||= {};
+    enrichHumans(next);
     if (typeof actionId !== 'string') throw new Error('Choose a valid action.');
     const category = CATEGORIES.find(name => actionId.startsWith(`${name}:`));
     if (!category) throw new Error('That action does not exist.');
@@ -902,8 +954,14 @@ export function performAction(state, actionId, payload = {}) {
     if (reason) throw new Error(reason);
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('The action details are invalid.');
     if (action.minigame) return beginMiniGame(next, action.minigame, payload);
+    const beforeStats = { ...next.stats };
     if (action.cost) spend(next, action.cost);
     const message = action.execute(next, payload);
+    for (const entity of next.relationships) {
+      if (entity.role !== 'pet' && !entity.species) ensureCharacter(entity, { seed: `${next.seed}:${entity.id}` });
+    }
+    reconcileCharacter(next, beforeStats);
+    applyCharacterAction(next, actionId);
     next.actionCounts[actionId] = count(next, actionId) + 1;
     next.actionCounts.__total = count(next, '__total') + 1;
     // Related investments / jobs have a shared yearly cap as well as individual limits.

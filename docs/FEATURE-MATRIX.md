@@ -8,9 +8,9 @@ Audit date: 18 October 2026. Baseline: `src/data.js`, `src/engine.js`, `src/syst
 
 | Feature family | Status | Implemented evidence | Limit or next step |
 | --- | --- | --- | --- |
-| Birth, origin and custom identity | Implemented | `createLife`; name, gender, country, city, seed and starting-age UI | Twenty countries; name pools are not country-specific; no detailed appearance editor |
+| Birth, origin and custom identity | Implemented | `createLife`; identity, place, seed, starting age, BCE/CE birth year, appearance, parent descriptions and editable attributes | Twenty modern countries; name pools are not country-specific; no era-specific world simulation |
 | Age advancement and journal | Implemented | `ageUp`, annual journal entries and grouped journal UI | One-year steps; no childhood months or variable turn lengths |
-| Character stats and skills | Implemented | Seven stats; fitness, music, acting, athletics, writing, coding and crime skills | Skills are broad scalar values; no talent trees or separate instruments |
+| Character stats and skills | Implemented | Detailed human profiles: IQ, capacities, body measurements, eight health systems, five traits/thirty facets; seven compatibility stats and seven skills | Ratings are synthetic; no clinical assessments, talent trees or separate instruments |
 | Life events | Implemented | Ninety-two original age-bounded events; contextual requirements and eight-event recent-history exclusion | Choices change cash/debt/stats; they do not currently create arbitrary relationship, condition or career story arcs |
 | Primary and secondary school | Simplified | Automatic start at five, transition at eleven and graduation at eighteen; study, tutoring and clubs | Same ages in every country; no teacher roster, discipline cases, attendance or school-specific activities |
 | University and advanced study | Simplified | Twenty-eight majors, four-year university, three-year graduate and two-year trade courses; fees and scholarships | Major does not constrain a job's subject requirement; one graduate gate substitutes for distinct professional schools |
@@ -22,7 +22,7 @@ Audit date: 18 October 2026. Baseline: `src/data.js`, `src/engine.js`, `src/syst
 | Dating and marriage | Simplified | Dating, matchmaking, friend romance, proposal, wedding, breakup and cash-based divorce | No preferences editor, infidelity/custody systems, prenups or detailed partner compatibility |
 | Children and adoption | Simplified | Age-dependent birth attempt, fertility treatment, adoption and child support action | Immediate outcomes; no pregnancy timeline, twin logic or independent descendant education/careers |
 | Pets | Simplified | Shelter cats/dogs, name, bond, health, vet care, annual upkeep and mortality | No breeds, exotic animals, breeding, pet-specific events or behavioural traits |
-| Health and recovery | Simplified | Health stat, ageing, medical care, therapy, rehabilitation, cosmetic surgery and two addiction sources | Conditions are strings; no general disease-onset catalogue, diagnoses by specialty, prognosis or treatment course |
+| Health and recovery | Simplified | Eight component health systems with aggregate, physical capacity, ageing, medical care, therapy, rehabilitation, cosmetic surgery and two addiction sources | Conditions are strings; no general disease-onset catalogue, diagnoses by specialty, prognosis or treatment course |
 | Hobbies and wellbeing | Implemented | Walking, meditation, gym, sport, music, acting, writing, coding, martial arts and volunteering | Fixed gains and per-year caps; no proficiency certificates or activity minigames |
 | Travel and emigration | Simplified | Holiday, twenty migration destinations, relocation fee, job reset and country cost/tax changes | No itinerary, visa process, illegal migration, moving within a country or location-specific events |
 | Vehicles and licences | Simplified | Driving and pilot licences; vehicle/aircraft purchase gates and enjoyment | Tests are chance-based or direct purchase; no questions, boating licence, collisions or driving simulation |
@@ -79,7 +79,7 @@ The [official store release notes](https://apps.apple.com/us/app/bitlife-life-si
 | Luxury lifestyle | Simplified | Expensive property, cars, jewellery, boats and aircraft | Islands, bespoke services, item customisation and dedicated luxury encounters |
 | Racing | Backlog | Cars and a generic sports bet are adjacent only | Garages, modifications, racing licences, tracks, opponents, records and driving mechanics |
 | Seasonal events and challenge vault | Backlog | Original static achievements only | Scenario definitions, eligibility/progress tracking, rotating goals and persistent reward inventory |
-| Character editor and paid power items | Backlog | Name/identity/origin/seed creation only | Optional sandbox editor and explicit rules for reversible edits; no real-money store is planned |
+| Character editor and paid power items | Implemented editor; other items backlog | Creation and existing-character editor: appearance, family descriptions, abilities, body, health and thirty personality facets | Edits are explicit and journalled; no real-money store or paid power items is planned |
 | Accessibility and localisation | Simplified | Responsive navigation, native dialogs, labelled controls and reduced-motion preference | Formal keyboard/screen-reader audit, contrast audit, text scaling and translated content |
 | Cloud/mobile services | Backlog | Local browser application and static localhost server | Hosting, account sync, native packaging and cross-device recovery |
 
@@ -104,3 +104,7 @@ Interactive blackjack and the prison escape puzzle have been verified through th
 Sessions save their kind, seed, stake and move history. Reload/import reconstructs the same game; moves and outcomes commit to the life save. Active sessions block other actions and birthdays. Starting blackjack consumes a yearly allowance and commits the stake before showing cards: at most three hands per year, with whole-dollar stakes from ten to one million and sufficient available cash. Leaving forfeits the stake. Escape is limited to one attempt per year; capture or abandoning the attempt adds three years, costs twelve health and ten happiness. Successful escape releases the character and adds heat. A session accepts at most two hundred recorded moves, while wall-blocked moves consume no turn.
 
 These are implemented interactive mechanics within broader simplified gambling/prison systems. They do not implement casino ownership, a full justice simulation or multiple prison difficulty levels.
+
+## Detailed character update (19 October 2026)
+
+Player and human NPC profiles now use a seeded thirty-facet Big Five model, with derived domain charts, inspectable individual bodies/abilities, and component health. Personality/IQ influence learning and work; both people influence social compatibility; physical capacity uses size, composition, abilities and health. Childhood growth, save migration and legacy continuity are implemented. Calendar-only historical birth years are supported with BCE/CE crossings and no year zero. See [CHARACTER-MODEL.md](CHARACTER-MODEL.md) for synthetic-model limits and remaining depth.

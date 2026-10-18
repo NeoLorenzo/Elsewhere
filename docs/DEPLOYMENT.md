@@ -26,7 +26,9 @@ Local file edits appear in the local preview. Published changes appear only afte
 
 [The Pages workflow](../.github/workflows/pages.yml) runs on pushes to `main` and supports manual dispatch from the repository's Actions tab. A manual dispatch must select `main`; other branches are deliberately skipped. Publication requires the repository's Pages publishing source to be **GitHub Actions**, with Actions and the `github-pages` environment allowed to deploy from `main`.
 
-The workflow checks out source, selects Node.js 22 and runs `npm test`. No `npm install` is needed because this game currently has no external runtime or test dependencies. If dependencies are introduced later, commit a lockfile and add the appropriate deterministic install step before tests.
+The workflow checks out source, selects Node.js 22 and runs `npm run check` (syntax checks plus tests). No `npm install` is needed because this game currently has no external runtime or test dependencies. If dependencies are introduced later, commit a lockfile and add the appropriate deterministic install step before tests.
+
+`npm run build` stages the game with `scripts/build-static.mjs`. The script computes a source-content hash and versions every stylesheet/module reference and the module import graph. This prevents a newly deployed interface from loading an older cached simulation module. Local development uses the server’s revision mechanism instead.
 
 Only these paths enter the static staging directory:
 
