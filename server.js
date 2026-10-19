@@ -36,5 +36,5 @@ const server = http.createServer(async (req,res)=>{
     res.end(req.method==='HEAD'?undefined:body);
   } catch(error) {res.writeHead(error.code==='ENOENT'?404:400);res.end('File not found');}
 });
-server.listen(port,'127.0.0.1',()=>console.log(`\n  ELSEWHERE · a life of possibilities\n\n  Local: http://localhost:${port}\n  Live reload enabled. Press Ctrl+C to stop.\n`));
+server.listen(port,'127.0.0.1',()=>console.log(`\n  Local: http://localhost:${port}\n  Live reload enabled. Press Ctrl+C to stop.\n`));
 server.on('error',error=>{console.error(error.code==='EADDRINUSE'?`Port ${port} is in use. Run with another PORT.`:error.message);process.exitCode=1;});

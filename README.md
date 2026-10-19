@@ -15,7 +15,9 @@ npm start
 
 Open **[localhost:3000](http://localhost:3000)**. Edits refresh the local preview automatically; progress is saved in the browser. Start another life at any whole-number age from 0 to 120 using **New life**. The navigation opens with the menu button on narrow screens.
 
-New in **0.4**: set your full birthday and each parent's individual net worth. Build a structured CV with schools, qualifications, jobs, skills, languages, certifications, volunteering, projects, awards and references. View it in **Character sheet → CV & history**, edit it later, or export a Markdown CV. Completed education and a current job connect to actual qualification gates, course progression and future pay. See [the background schema](docs/BACKGROUND.md).
+New in **0.4**: set your full birthday and each parent's individual net worth. Build a structured CV with schools, qualifications, jobs, skills, languages, certifications, volunteering, projects, awards and references. View it in **Character → CV & history**, edit it later, or export a Markdown CV. Completed education and a current job connect to actual qualification gates, course progression and future pay. See [the background schema](docs/BACKGROUND.md).
+
+**0.4.1** removes interface branding, filler and repeated copy while retaining journal narratives, action consequences and validation. See the [copy audit](docs/UI-COPY-AUDIT.md).
 
 Choose a birth year of 1900 or later and a starting age from0 to120. Country and city names follow the chosen era. Customise your current measurements, portrait, IQ, abilities and every Big Five facet; describe both parents. Existing pre-1900 lives retain progress while their timeline moves to a1900 birth date, with original-date metadata and a journal notice.
 

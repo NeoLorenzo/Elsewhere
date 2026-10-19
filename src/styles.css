@@ -18,3 +18,37 @@
 :root[data-motion=reduced] *{animation:none!important;transition:none!important;scroll-behavior:auto!important}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 .game-hero{padding-bottom:20px}.blackjack-table{padding:22px;background:#294f48;border-radius:14px;color:#f4f0e5;margin:0 0 22px}.hand-label{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}.hand-label>span{font-size:8px;letter-spacing:1.7px;opacity:.7}.hand-label>strong{font-family:var(--heading);font-size:17px}.card-hand{display:flex;justify-content:center;gap:9px;flex-wrap:wrap}.playing-card{display:flex;position:relative;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:#fffdf6;border-radius:6px;color:#2c3437;width:58px;height:81px;box-shadow:0 3px 7px #0002}.playing-card>b{position:absolute;left:7px;top:5px;font-size:12px;font-style:normal}.playing-card>i{position:absolute;right:7px;bottom:5px;transform:rotate(180deg);font-style:normal;font-size:12px;font-weight:600}.playing-card>span{font-size:24px}.playing-card.card-red{color:#c56e6e}.playing-card.card-back{background:repeating-linear-gradient(45deg,#7770ad 0 3px,#8a83bb 3px 6px);border:4px solid #fffdf6;color:#e5d6ad;font-size:31px}.table-rule{font-size:5px;letter-spacing:1.7px;opacity:.4;text-align:center;border-top:1px solid #ffffff25;padding-top:13px;margin:23px 0 20px}.game-buttons{display:grid;grid-template-columns:1fr 1fr;gap:12px}.game-forfeit{display:block;margin:18px auto 0;color:var(--muted);font-size:9px;text-decoration:underline;padding:6px}.game-result{padding:17px 20px;border:1px solid var(--border);background:var(--purple-wash);color:var(--purple);font-size:12px;line-height:1.9;border-radius:10px;margin:20px 0}.escape-board{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;padding:10px;border:1px solid var(--border);border-radius:12px;max-width:290px;margin:0 auto;background:var(--bg)}.escape-cell{aspect-ratio:1;display:grid;place-items:center;border:1px solid var(--border);border-radius:4px;background:var(--surface);font-size:23px;color:var(--purple)}.escape-cell .icon{width:20px;height:20px}.escape-cell.wall{background:#515160;border-color:#515160;box-shadow:inset 0 -3px 0 #0001}.escape-cell.guard{background:#f5e2dd;color:#b96e5b}.escape-cell.player{background:var(--purple-wash);color:var(--purple)}.escape-cell.exit{background:#e6f1e6;color:#6b9d71}.board-key{display:flex;justify-content:center;gap:16px;font-size:9px;color:var(--subtext);margin:16px 0}.player-key{color:var(--purple)}.guard-key{color:#b96e5b}.direction-pad{display:grid;grid-template-columns:repeat(3,43px);grid-template-rows:repeat(2,39px);justify-content:center;gap:7px;margin:20px 0}.direction-pad>button{background:var(--purple-wash);color:var(--purple);border:1px solid #625bd125;font-size:20px;border-radius:8px}.direction-pad>button:hover{background:var(--purple);color:var(--surface)}.direction-pad>button:first-child{grid-column:2}.direction-pad>button:nth-child(2){grid-column:1;grid-row:2}.direction-pad>button:nth-child(3){grid-column:2;grid-row:2}.direction-pad>button:nth-child(4){grid-column:3;grid-row:2}
+/* Compact interface: labels, state and decisions. */
+.breadcrumbs h1{font:600 16px var(--heading);line-height:1.3;margin:0;letter-spacing:-.3px}
+.topbar .year-pill{display:flex;align-items:center;gap:7px;min-width:0;padding:9px 11px;margin:0;font-size:11px;box-shadow:none}
+.topbar .year-pill .icon{width:15px;height:15px}
+.content-grid.single-column{grid-template-columns:minmax(0,1fr)}
+.page-wrap{padding-bottom:30px}
+.age-dock{justify-content:flex-end}
+.sidebar nav{margin-top:0}
+.journal-filter{justify-content:flex-end;margin-top:0}
+.action-toolbar{margin-top:0}
+.action-group-note{font-size:10px;color:var(--muted);margin:-8px 0 12px;line-height:1.6}
+.modal-hero{padding:0 0 20px}
+.modal-hero h2{font-size:23px}
+.cv-pay-note{font-size:10px;color:var(--muted);line-height:1.6}
+.cv-sheet-heading{justify-content:flex-end;margin:0 0 14px}
+.cv-record{padding-top:16px}
+.profile-birth{font-size:12px;color:var(--subtext);margin:0 0 17px}
+.builder-preview{justify-content:center;padding:10px;background:none;border:0}
+.character-sheet .personality-intro{grid-template-columns:1fr;margin-bottom:16px}
+.character-sheet .personality-intro>div{max-width:390px;width:100%;margin:auto}
+.character-sheet [data-sheet-panel=overview] .character-metrics{margin-bottom:20px}
+.character-sheet [data-sheet-panel=overview]>.profile-component{margin-top:20px}
+@media(max-width:640px){
+ .breadcrumbs h1{font-size:13px;max-width:110px}
+ .topbar{gap:10px}
+ .topbar .year-pill{padding:6px;font-size:10px}
+ .topbar .year-pill .icon{display:none}
+ .topbar-actions{gap:5px}
+ .new-life-button span{display:none}
+ .new-life-button{min-width:30px;justify-content:center}
+ .sidebar{padding-top:20px}
+ .age-dock .undo-button{display:inline-flex}
+ .modal-hero h2{font-size:22px}
+}

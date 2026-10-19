@@ -166,3 +166,5 @@
   .person-profile-card strong {font-size:11px}
   .modal .character-sheet-hero {padding-top:15px}
 }
+.facet-label{display:flex;align-items:center;gap:8px}
+.facet-label i{width:8px;height:8px;border-radius:50%;flex-shrink:0}

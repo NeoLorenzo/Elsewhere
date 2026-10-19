@@ -6,7 +6,7 @@ Implemented 19 October 2026. These records describe fictional game characters an
 
 In **New life**, choose a birth year, month and day. Open **Your parents** to enter each parent's own net worth and appearance. Open **Education, work & CV** to add any number of background entries, up to 100 per section. Starting age determines the latest valid date for prior experience. Empty sections do not manufacture institutions or former employers.
 
-Existing lives use **Character sheet → Customise this character**. The **CV & history** tab displays the background and offers **Export CV**, a Markdown document. JSON save exports preserve every structured field, including dates and parent wealth. Birthday editing changes the day/month while retaining the existing birth year, age and timeline.
+Existing lives use **Character → Edit character**. The **CV & history** tab displays the background and offers **Export CV**, a Markdown document. JSON save exports preserve every structured field, including dates and parent wealth. Birthday editing changes the day/month while retaining the existing birth year, age and timeline.
 
 The creator uses calendar years for CV entries. A record can be ongoing or have an end year. Validation rejects experience before birth, entries after the current year, reversed date ranges, missing required names and more than one current full-time job. Multiple current part-time roles are allowed. Certification expiry dates can be in the future, but cannot precede the date earned.
 
