@@ -1,7 +1,9 @@
 import { COUNTRIES, FIRST_NAMES, LAST_NAMES, EVENTS, ACHIEVEMENTS } from './data.js';
 import { ensureCharacter, reconcileCharacter, ageCharacter, personalityModifier, overallHealth, HEALTH_COMPONENTS } from './character.js';
-import { validateYear, calendarYearAtAge, advanceCalendarYear } from './calendar.js';
+import { validateYear, calendarYearAtAge, advanceCalendarYear, validateBirthDate, normalizeBirthDate, dateAtAge } from './calendar.js';
 import { countryForYear } from './countries.js';
+import { normalizeBackground, validateBackground, BACKGROUND_COLLECTIONS } from './background.js';
+import { syncBackgroundProgress } from './background-events.js';
 
 export const clamp = (n, min = 0, max = 100) => Math.min(max, Math.max(min, Number.isFinite(Number(n)) ? Number(n) : min));
 const copy = value => structuredClone(value);
@@ -13,6 +15,52 @@ const statNames = ['happiness', 'health', 'smarts', 'looks', 'discipline', 'karm
 const profileKeys = ['appearance', 'personality', 'attributes', 'body', 'healthProfile'];
 const profileOptions = source => Object.fromEntries(profileKeys.filter(key => source?.[key] && typeof source[key] === 'object' && !Array.isArray(source[key])).map(key => [key, copy(source[key])]));
 const birthAt = (year, age) => calendarYearAtAge(year, -age);
+const parentRoles = ['mother', 'father', 'parent'];
+
+function validateParentWealth(value) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || Math.abs(value) > 1e15) throw new RangeError('Parent net worth must be a finite amount from -1,000,000,000,000,000 to 1,000,000,000,000,000.');
+  return value;
+}
+
+const importedParentWealth = value => value === undefined ? 50000 : typeof value === 'number' && Number.isFinite(value) ? clamp(value, -1e15, 1e15) : 0;
+const backgroundContext = state => ({ birthYear: state.birthYear, age: state.age, year: state.year });
+
+function applyBackgroundGameplay(state) {
+  const background = state.background;
+  if (background.educationMode !== 'unspecified') {
+    const rank = { none: 0, primary: 1, secondary: 2, trade: 2, university: 3, graduate: 4, other: 0 };
+    const records = background.educationMode === 'recorded' ? background.education : [];
+    const completed = records.filter(row => row.status === 'completed' && (row.endYear ?? row.startYear) <= state.year)
+      .sort((a, b) => (rank[b.level] || 0) - (rank[a.level] || 0) || (b.endYear ?? b.startYear) - (a.endYear ?? a.startYear))[0];
+    const attending = records.filter(row => row.status === 'attending' && row.startYear <= state.year && (row.endYear === null || row.endYear >= state.year))
+      .sort((a, b) => b.startYear - a.startYear)[0];
+    const numericGrade = Number((attending || completed)?.grade);
+    state.education = { level: completed && completed.level !== 'other' ? completed.level : 'none', enrolled: null, yearsLeft: 0,
+      grades: Number.isFinite(numericGrade) && (attending || completed)?.grade !== '' ? clamp(numericGrade) : state.education.grades,
+      major: completed?.field || null, institution: completed?.institution || '', qualification: completed?.qualification || '', resumeId: completed?.id || null, plannedEndYear: null };
+    if (attending) {
+      const duration = ({ primary: 6, secondary: 7, trade: 2, university: 4, graduate: 3 })[attending.level] || 1;
+      const automaticSchool=attending.source==='game'&&['primary','secondary'].includes(attending.level)&&state.age<18;
+      state.education.enrolled = attending.level;
+      state.education.yearsLeft = automaticSchool?18-state.age:Math.round(clamp(attending.endYear === null ? duration - (state.year - attending.startYear) : attending.endYear - state.year, 1, 160));
+      state.education.customSchedule=!automaticSchool;
+      state.education.major = attending.field || null;
+      state.education.institution = attending.institution;
+      state.education.qualification = attending.qualification;
+      state.education.resumeId = attending.id;
+      state.education.plannedEndYear = attending.endYear;
+    }
+  }
+  if (background.employmentMode !== 'unspecified') {
+    const current = background.employmentMode === 'recorded' ? background.workExperience.filter(row => row.current && row.startYear <= state.year)
+      .sort((a, b) => Number(b.employmentType==='full-time')-Number(a.employmentType==='full-time') || b.startYear-a.startYear)[0] : null;
+    if (!current) state.job = null;
+    else state.job = { id: state.job?.resumeId === current.id ? state.job.id : `custom:${current.id}`,
+      title: current.title, employer: current.employer, employmentType:current.employmentType, resumeId: current.id,
+      salary: money(number(current.annualSalary, 0, 0, 1e12)), performance: state.job?.resumeId === current.id ? state.job.performance : 55,
+      years: Math.max(0, state.year - current.startYear) };
+  }
+}
 
 function startingAge(value) {
   if (value === undefined) return 0;
@@ -23,7 +71,7 @@ function startingAge(value) {
 
 function migrateCalendar(raw) {
   const age = Math.floor(number(raw.age, 0, 0, 120));
-  const birthYear = validateYear(raw.birthYear, birthAt(validateYear(raw.year, 2026), age));
+  const birthYear = validateYear(raw.birthYear, validateYear(raw.birthDate?.year, birthAt(validateYear(raw.year, 2026), age)));
   if (birthYear >= 1900) return false;
   const index = year => BigInt(year) - (year > 0 ? 1n : 0n);
   const offset = index(1900) - index(birthYear);
@@ -38,9 +86,19 @@ function migrateCalendar(raw) {
   raw.originalBirthYear = validateYear(raw.originalBirthYear, birthYear);
   raw.birthYear = 1900;
   raw.year = calendarYearAtAge(1900, age);
+  if (raw.birthDate && typeof raw.birthDate === 'object') raw.birthDate.year = 1900;
+  if (raw.date && typeof raw.date === 'object') raw.date.year = raw.year;
+  const shiftBackground = background => {
+    for (const collection of BACKGROUND_COLLECTIONS) for (const row of list(background?.[collection], 100)) if (row && typeof row === 'object') {
+      for (const key of ['startYear', 'endYear', 'year', 'expiryYear']) if (row[key] !== undefined && row[key] !== null) row[key] = shift(row[key]);
+    }
+  };
+  shiftBackground(raw.background);
   for (const person of list(raw.relationships, 250)) if (person && typeof person === 'object') {
     if (person.birthYear !== undefined) person.birthYear = shift(person.birthYear);
     if (person.year !== undefined) person.year = shift(person.year);
+    if (person.birthDate && typeof person.birthDate === 'object' && person.birthDate.year !== undefined) person.birthDate.year = shift(person.birthDate.year);
+    shiftBackground(person.background);
   }
   for (const record of [...list(raw.journal, 1800), ...list(raw.history, 1000), ...list(raw.ancestors, 100)]) {
     if (record && typeof record === 'object') {
@@ -69,6 +127,7 @@ function initializeCharacters(state, options = {}) {
     const patch = options.parents?.[parent.role] || {};
     if (patch.age !== undefined) parent.age = Math.floor(number(patch.age, parent.age, 16, 160));
     if (typeof patch.name === 'string' && patch.name.trim()) parent.name = text(patch.name);
+    parent.netWorth = patch.netWorth === undefined ? 50000 : validateParentWealth(patch.netWorth);
     parent.birthYear = birthAt(state.year, parent.age);
     ensureHuman(parent, state.year, { ...profileOptions(patch), seed: state.seed });
   }
@@ -116,17 +175,18 @@ export function createLife(options = {}) {
   const seed = seedValue(options.seed);
   const gender = ['female', 'male', 'neutral'].includes(options.gender) ? options.gender : 'neutral';
   const age = startingAge(options.age);
-  const birthYear = options.birthYear === undefined ? birthAt(2026, age) : validateYear(options.birthYear);
+  const birthYear = options.birthYear === undefined ? validateYear(options.birthDate?.year, birthAt(2026, age)) : validateYear(options.birthYear);
   if (birthYear < 1900) throw new RangeError('New lives must have a birth year of 1900 or later.');
   if (Math.abs(birthYear) > Number.MAX_SAFE_INTEGER - 256) throw new RangeError('Choose a birth year with at least 256 years of safe calendar headroom.');
   const year = calendarYearAtAge(birthYear, age);
+  const birthDate = validateBirthDate(options.birthDate, birthYear);
   const country = countryFor(options.country, year);
   const requestedCity = text(options.city);
   const city = cityAlias(country, requestedCity);
   const state = {
     version: 1, id: `life-${seed.toString(36)}`, seed, rng: seed, firstName: '', lastName: '', gender,
     country: country?.id || 'uk', city: city || (country?.cities?.includes('London') ? 'London' : country?.cities?.[0] || 'London'),
-    age, birthYear, year, alive: true, causeOfDeath: null,
+    age, birthYear, birthDate, date: dateAtAge(birthDate, age), year, alive: true, causeOfDeath: null,
     stats: { happiness: 75, health: 90, smarts: 50, looks: 50, discipline: 50, karma: 65, fame: 0 },
     cash: 0, debt: 0, education: educationAt(age), job: null, relationships: [], assets: [], investments: [],
     business: null, specialCareer: null, prison: { years: 0, record: 0, heat: 0 },
@@ -146,6 +206,8 @@ export function createLife(options = {}) {
   }));
   applyStats(state, options.stats);
   initializeCharacters(state, options);
+  state.background = options.background === undefined ? normalizeBackground(null, backgroundContext(state)) : validateBackground(options.background, backgroundContext(state));
+  applyBackgroundGameplay(state);
   addLog(state, 'life', age ? 'A new chapter' : 'Hello, world', age
     ? `My story begins at age ${age} in ${state.city}, ${country?.name || state.country}.`
     : `I was born in ${state.city}, ${country?.name || state.country}. My name is ${state.firstName} ${state.lastName}.`);
@@ -207,6 +269,19 @@ function finishEducation(state) {
   const enrolled = typeof school.enrolled === 'object' ? school.enrolled.level || school.enrolled.type : school.enrolled;
   if (!enrolled) return;
   if (['primary', 'secondary', 'school'].includes(enrolled)) {
+    if (school.customSchedule) {
+      school.yearsLeft = Math.max(0, school.yearsLeft - 1);
+      if (!school.yearsLeft) {
+        if (school.grades >= 25) {
+          const rank = { none: 0, primary: 1, secondary: 2, trade: 2, university: 3, graduate: 4 };
+          const earned = enrolled === 'primary' ? 'primary' : 'secondary';
+          if ((rank[earned] || 0) >= (rank[school.level] || 0)) school.level = earned;
+          addLog(state, 'education', 'Course completed', `I completed ${school.qualification || enrolled} at ${school.institution || 'my school'}.`);
+        } else addLog(state, 'education', 'An unfinished course', 'My grades were too low to complete my course.');
+        school.enrolled = null;
+      }
+      return;
+    }
     school.yearsLeft = Math.max(0, 18 - state.age);
     if (state.age >= 18) {
       school.level = 'secondary'; school.enrolled = null;
@@ -221,9 +296,9 @@ function finishEducation(state) {
       if (school.grades < 25) {
         addLog(state, 'education', 'An unfinished degree', 'My grades were too low to graduate. I left my course without a qualification.');
       } else {
-        const qualification = enrolled === 'trade' ? 'trade' : ['graduate', 'medical', 'law', 'doctorate'].includes(enrolled) ? 'graduate' : 'university';
+        const qualification = enrolled === 'other' ? null : enrolled === 'trade' ? 'trade' : ['graduate', 'medical', 'law', 'doctorate'].includes(enrolled) ? 'graduate' : 'university';
         const rank = { none: 0, primary: 0, secondary: 1, trade: 1, university: 2, graduate: 3 };
-        if ((rank[qualification] || 0) >= (rank[school.level] || 0)) school.level = qualification;
+        if (qualification && (rank[qualification] || 0) >= (rank[school.level] || 0)) school.level = qualification;
         addLog(state, 'education', 'Degree completed', `I graduated${school.major ? ` in ${school.major}` : ''} with grades of ${school.grades}%.`);
       }
       school.enrolled = null;
@@ -261,10 +336,11 @@ function annualRelationships(state) {
       person.alive = false;
       state.stats.happiness = clamp(state.stats.happiness - (person.bond > 60 ? 18 : 7));
       addLog(state, 'relationships', 'A goodbye', `My ${person.role} ${person.name} died at the age of ${person.age}.`);
-      if (['mother', 'father', 'parent'].includes(person.role) && state.age >= 18 && person.bond > 35) {
-        const inheritance = roll(state, 1000, 22000);
+      if (parentRoles.includes(person.role) && state.age >= 18 && person.bond > 35) {
+        const inheritance = person.netWorth === undefined ? roll(state, 1000, 22000) : Math.max(0, Number(person.netWorth) || 0);
+        person.netWorth = 0;
         state.cash = money(state.cash + inheritance);
-        addLog(state, 'finance', 'An inheritance', `I inherited ${inheritance.toLocaleString('en-US')} from ${person.name}'s estate.`);
+        if (inheritance > 0) addLog(state, 'finance', 'An inheritance', `I inherited ${inheritance.toLocaleString('en-US')} from ${person.name}'s estate.`);
       }
     }
   }
@@ -365,6 +441,7 @@ function endLife(state, cause) {
 export function ageUp(input) {
   const state = copy(input);
   if (!state.alive || state.pendingEvent || state.minigame) return state;
+  const beforeProgress = { year: state.year, city: state.city, country: state.country, education: copy(state.education), job: copy(state.job), licenses:[...state.licenses] };
   ensureHuman(state, state.year, { seed: state.seed });
   for (const person of state.relationships) ensureHuman(person, state.year, { seed: state.seed });
   const beforeStats = copy(state.stats);
@@ -372,6 +449,8 @@ export function ageUp(input) {
   const previousAge = state.age;
   const previousCountry = countryFor(state.country, state.year);
   state.age++; state.year = advanceCalendarYear(state.year); state.actionCounts = {};
+  state.birthDate = normalizeBirthDate(state.birthDate, state.birthYear);
+  state.date = dateAtAge(state.birthDate, state.age);
   const currentCountry = countryFor(state.country, state.year);
   if (cityAlias(currentCountry, state.city) !== state.city) state.city = cityAlias(currentCountry, state.city);
   else if (!currentCountry.cities.includes(state.city) && previousCountry.cities.includes(state.city)) state.city = currentCountry.cities[previousCountry.cities.indexOf(state.city)] || state.city;
@@ -416,6 +495,7 @@ export function ageUp(input) {
   }
   state.history.push({ type: 'year', age: state.age, year: state.year, netWorth: netWorth(state), job: state.job?.title || null });
   if (state.history.length > 1000) state.history.splice(0, state.history.length - 1000);
+  syncBackgroundProgress(state, beforeProgress);
   checkAchievements(state);
   return state;
 }
@@ -423,6 +503,7 @@ export function ageUp(input) {
 export function resolveEvent(input, index) {
   const state = copy(input);
   if (!state.alive || state.minigame || !state.pendingEvent || !Number.isInteger(index) || !state.pendingEvent.choices[index]) return state;
+  const beforeProgress = { year:state.year,city:state.city,country:state.country,education:copy(state.education),job:copy(state.job),licenses:[...state.licenses] };
   ensureHuman(state, state.year, { seed: state.seed });
   const beforeStats = copy(state.stats);
   const event = state.pendingEvent, choice = event.choices[index];
@@ -440,6 +521,7 @@ export function resolveEvent(input, index) {
   state.pendingEvent = null;
   reconcileCharacter(state, beforeStats);
   if (state.stats.health <= 0) endLife(state, 'a serious health crisis');
+  syncBackgroundProgress(state,beforeProgress);
   checkAchievements(state);
   return state;
 }
@@ -453,9 +535,11 @@ export function continueLegacy(input, childId) {
   if (!child) throw new Error('Choose a living child to continue the family story.');
   const state = createLife({ seed: `${input.seed}:${child.id}:${input.generation}`, firstName: child.name.split(' ')[0],
     lastName: child.name.split(' ').slice(1).join(' ') || input.lastName, country: input.country, city: input.city,
-    age: child.age, birthYear: child.birthYear, gender: child.gender, ...profileOptions(child), stats: child.stats });
+    age: child.age, birthYear: child.birthYear, birthDate: normalizeBirthDate(child.birthDate, child.birthYear), gender: child.gender, ...profileOptions(child), stats: child.stats,
+    background: normalizeBackground(child.background, { birthYear: child.birthYear, age: child.age, year: input.year }) });
   state.id = child.id;
   state.year = input.year;
+  state.date = { ...state.date, year: state.year };
   const supportBenefit = Math.min(20, (Number(child.educationSupport) || 0) * 2);
   state.stats.smarts = clamp(state.stats.smarts + supportBenefit);
   state.education.grades = clamp(state.education.grades + supportBenefit);
@@ -467,7 +551,7 @@ export function continueLegacy(input, childId) {
     ...copy(r), role: r.role === 'child' ? 'sibling' : 'parent', bond: Math.round(clamp(r.bond * .8)),
   }));
   state.relationships.unshift({ id: input.id, name: `${input.firstName} ${input.lastName}`, age: input.age, alive: false,
-    birthYear: input.birthYear, role: 'parent', gender: input.gender, bond: child.bond, ...profileOptions(input) });
+    birthYear: input.birthYear, netWorth: 0, role: 'parent', gender: input.gender, bond: child.bond, ...profileOptions(input) });
   for (const person of state.relationships) ensureHuman(person, state.year, { seed: state.seed });
   state.achievements = [...input.achievements];
   state.journal = []; state.flags.logSequence = 0;
@@ -488,9 +572,10 @@ export function normalizeState(input) {
     throw new Error('Unsupported or incomplete save file.');
   }
   const migratedCalendar = migrateCalendar(raw);
+  const importedBirthYear = validateYear(raw.birthYear, validateYear(raw.birthDate?.year, birthAt(validateYear(raw.year, 2026), Math.floor(number(raw.age, 0, 0, 120)))));
   const state = createLife({ seed: raw.seed, firstName: raw.firstName, lastName: raw.lastName, gender: raw.gender,
     country: raw.country, city: raw.city, age: Math.floor(number(raw.age, 0, 0, 120)),
-    birthYear: validateYear(raw.birthYear, birthAt(validateYear(raw.year, 2026), Math.floor(number(raw.age, 0, 0, 120)))) });
+    birthYear: importedBirthYear, birthDate: normalizeBirthDate(raw.birthDate, importedBirthYear) });
   state.id = text(raw.id, state.id, 100); state.seed = seedValue(raw.seed); state.rng = number(raw.rng, state.seed, 0, 0xffffffff) >>> 0;
   state.year = calendarYearAtAge(state.birthYear, state.age);
   if (raw.originalBirthYear !== undefined) state.originalBirthYear = validateYear(raw.originalBirthYear, state.birthYear);
@@ -500,20 +585,31 @@ export function normalizeState(input) {
   const education = raw.education || {};
   state.education = { level: ['none', 'primary', 'secondary', 'trade', 'university', 'graduate'].includes(education.level) ? education.level : 'none',
     enrolled: typeof education.enrolled === 'string' ? text(education.enrolled, '', 50) || null : null,
-    yearsLeft: Math.floor(number(education.yearsLeft, 0, 0, 20)), grades: number(education.grades, 60), major: text(education.major, '', 100) || null };
+    yearsLeft: Math.floor(number(education.yearsLeft, 0, 0, 160)), grades: number(education.grades, 60), major: text(education.major, '', 100) || null,
+    ...(education.institution!==undefined?{institution:text(education.institution,'',240)}:{}),
+    ...(education.qualification!==undefined?{qualification:text(education.qualification,'',240)}:{}),
+    ...(education.resumeId!==undefined?{resumeId:text(education.resumeId,'',100)||null}:{}),
+    ...(education.customSchedule!==undefined?{customSchedule:education.customSchedule===true}:{}),
+    ...(education.plannedEndYear!==undefined?{plannedEndYear:education.plannedEndYear==null?null:validateYear(education.plannedEndYear,state.year)}:{}) };
   if (education.enrolled && typeof education.enrolled === 'object') {
     state.education.enrolled = text(education.enrolled.level || education.enrolled.type, '', 50) || null;
   }
   state.job = raw.job && typeof raw.job === 'object' ? { id: text(raw.job.id, 'job', 80), title: text(raw.job.title, 'Worker'),
-    salary: money(number(raw.job.salary, 0, 0, 1e12)), performance: number(raw.job.performance, 50), years: Math.floor(number(raw.job.years, 0, 0, 120)) } : null;
+    salary: money(number(raw.job.salary, 0, 0, 1e12)), performance: number(raw.job.performance, 50), years: Math.floor(number(raw.job.years, 0, 0, 120)),
+    ...(raw.job.employer!==undefined?{employer:text(raw.job.employer,'',240)}:{}),
+    ...(raw.job.resumeId!==undefined?{resumeId:text(raw.job.resumeId,'',100)||null}:{}),
+    ...(raw.job.employmentType!==undefined?{employmentType:text(raw.job.employmentType,'full-time',40)}:{}) } : null;
   state.relationships = list(raw.relationships, 250).filter(r => r && typeof r === 'object').map((r, i) => ({
     id: text(r.id, `person-${i}`, 100), name: text(r.name, 'Unknown person'), role: text(r.role, 'friend', 40),
     age: Math.floor(number(r.age, 18, 0, 160)), bond: number(r.bond, 50), alive: r.alive !== false,
     gender: ['male', 'female', 'neutral'].includes(r.gender) ? r.gender : 'neutral',
     ...(r.role !== 'pet' ? { birthYear: validateYear(r.birthYear, birthAt(state.year, Math.floor(number(r.age, 18, 0, 160)))), ...profileOptions(r) } : {}),
+    ...(r.birthDate && r.role !== 'pet' ? { birthDate: normalizeBirthDate(r.birthDate, validateYear(r.birthYear, birthAt(state.year, Math.floor(number(r.age, 18, 0, 160))))) } : {}),
+    ...(parentRoles.includes(r.role) || r.netWorth !== undefined ? { netWorth: importedParentWealth(r.netWorth) } : {}),
     ...(r.stats && typeof r.stats === 'object' && !Array.isArray(r.stats) ? { stats: Object.fromEntries(statNames.filter(key => typeof r.stats[key] === 'number' && Number.isFinite(r.stats[key])).map(key => [key, clamp(r.stats[key])])) } : {}),
     ...(r.role === 'pet' ? { species: text(r.species, 'dog', 40), health: number(r.health, 80) } : {}),
     ...(r.role === 'child' ? { educationSupport: Math.floor(number(r.educationSupport, 0, 0, 100)) } : {}),
+    ...(r.background && r.role !== 'pet' ? { background: normalizeBackground(r.background, { birthYear: validateYear(r.birthYear, birthAt(state.year, Math.floor(number(r.age, 18, 0, 160)))), age: Math.floor(number(r.age, 18, 0, 160)), year: state.year }) } : {}),
   }));
   state.assets = list(raw.assets, 200).filter(a => a && typeof a === 'object').map((a, i) => ({
     id: text(a.id, `asset-${i}`, 100), name: text(a.name, 'Asset'), type: text(a.type, 'property', 40),
@@ -589,6 +685,7 @@ export function normalizeState(input) {
   Object.assign(state, profileOptions(raw));
   ensureHuman(state, state.year, { seed: state.seed });
   for (const person of state.relationships) ensureHuman(person, state.year, { seed: state.seed });
+  state.background = normalizeBackground(raw.background, backgroundContext(state));
   if (migratedCalendar && !state.flags.calendarMigrationNotice) {
     state.flags.calendarMigrationNotice = true;
     addLog(state, 'life', 'Calendar updated', 'My saved story was moved to a birth year of 1900. My age, experiences, relationships, and progress were preserved.');
@@ -600,14 +697,26 @@ export function normalizeState(input) {
 export function customizeCharacter(input, patch = {}) {
   if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new Error('Character edits must be an object.');
   const state = normalizeState(input);
+  if (patch.birthDate !== undefined) {
+    if (!patch.birthDate || typeof patch.birthDate !== 'object' || Array.isArray(patch.birthDate)) throw new RangeError('Enter a valid date of birth.');
+    state.birthDate = validateBirthDate({ year: state.birthYear, month: patch.birthDate.month ?? state.birthDate.month, day: patch.birthDate.day ?? state.birthDate.day }, state.birthYear);
+    state.date = dateAtAge(state.birthDate, state.age);
+  }
   const beforeStats = copy(state.stats);
   applyStats(state, patch.stats);
   reconcileCharacter(state, beforeStats);
   ensureHuman(state, state.year, { ...profileOptions(patch), seed: state.seed });
+  if (patch.background !== undefined) {
+    state.background = validateBackground(patch.background, backgroundContext(state));
+    applyBackgroundGameplay(state);
+  }
   for (const role of ['mother', 'father']) {
     const parent = state.relationships.find(person => person.role === role);
     const edit = patch.parents?.[role];
-    if (parent && edit && typeof edit === 'object' && !Array.isArray(edit)) ensureHuman(parent, state.year, { ...profileOptions(edit), seed: state.seed });
+    if (parent && edit && typeof edit === 'object' && !Array.isArray(edit)) {
+      if (edit.netWorth !== undefined) parent.netWorth = validateParentWealth(edit.netWorth);
+      ensureHuman(parent, state.year, { ...profileOptions(edit), seed: state.seed });
+    }
   }
   addLog(state, 'life', 'Character updated', 'I updated the details of my character and family profile.');
   if (state.alive && state.stats.health <= 0) endLife(state, 'a serious health crisis');

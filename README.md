@@ -15,7 +15,9 @@ npm start
 
 Open **[localhost:3000](http://localhost:3000)**. Edits refresh the local preview automatically; progress is saved in the browser. Start another life at any whole-number age from 0 to 120 using **New life**. The navigation opens with the menu button on narrow screens.
 
-New in **0.3**: choose a birth year of 1900 or later and a starting age from 0 to 120. Country and city names follow the chosen era. Customise your current measurements, portrait, IQ, abilities and every Big Five facet; describe both parents. Open **Character sheet** for your profile and select a person in **Relationships** for theirs. Existing pre-1900 lives retain progress while their timeline moves to a 1900 birth date, with original-date metadata and a journal notice.
+New in **0.4**: set your full birthday and each parent's individual net worth. Build a structured CV with schools, qualifications, jobs, skills, languages, certifications, volunteering, projects, awards and references. View it in **Character sheet → CV & history**, edit it later, or export a Markdown CV. Completed education and a current job connect to actual qualification gates, course progression and future pay. See [the background schema](docs/BACKGROUND.md).
+
+Choose a birth year of 1900 or later and a starting age from0 to120. Country and city names follow the chosen era. Customise your current measurements, portrait, IQ, abilities and every Big Five facet; describe both parents. Existing pre-1900 lives retain progress while their timeline moves to a1900 birth date, with original-date metadata and a journal notice.
 
 ```powershell
 npm run check
@@ -58,6 +60,7 @@ All locations use one fictional dollar economy. Taxes, prices and salaries are g
 | `src/data.js`, `src/countries.js` | Original content and year-aware country catalogue |
 | `src/character.js`, `src/calendar.js` | Detailed human profiles, growth, health, Big Five facets and BCE/CE dates |
 | `src/character-ui.js`, `src/character.css` | Character creation, editable profiles and personality maps |
+| `src/background.js`, `src/background-events.js`, `src/background-ui.js` | Structured CV schema, game progression records, birthday and CV editor |
 | `src/minigames.js` | Pure deterministic blackjack and escape rules |
 | `src/game-session.js` | Persistent games, stakes, consequences and settlement |
 | `src/app.js`, `src/styles.css` | Responsive interface and local persistence |

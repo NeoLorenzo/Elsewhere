@@ -4,6 +4,7 @@ import { beginMiniGame } from './game-session.js';
 import { ensureCharacter, reconcileCharacter, applyCharacterAction, personalityCompatibility, personalityModifier, physicalCapacity } from './character.js';
 import { calendarYearAtAge } from './calendar.js';
 import { countryForYear, countriesForYear } from './countries.js';
+import { syncBackgroundProgress } from './background-events.js';
 
 const CATEGORIES = ['education', 'career', 'relationships', 'activities', 'assets', 'finance', 'crime', 'special'];
 const money = value => Math.round(value).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
@@ -345,13 +346,17 @@ function definitions(state, category) {
         }, { group });
       }
       if (['mother', 'father', 'parent'].includes(p.role)) {
-        add(`${prefix}:money`, 'Ask for money', 'Your age and relationship affect your family’s willingness to help.', s => {
+        add(`${prefix}:money`, 'Ask for money', 'Your bond and your parent’s available wealth affect the help they can offer.', s => {
           const target = s.relationships.find(person => person.id === p.id);
           target.bond = clamp(target.bond - 5);
+          const available = Math.max(0, Number.isFinite(target.netWorth) ? target.netWorth : 0);
+          if (available < 1) return `${p.name} cannot afford to give you money right now.`;
           const support = clamp(p.bond / 140 * personalityModifier(s, 'social') + (facet(target, 'altruism') - 50) / 700, 0.05, 0.9);
           if (random(s) < support) {
-            const gift = s.age < 18 ? 30 + Math.floor(random(s) * 170) : 100 + Math.floor(random(s) * 900);
+            const budget = Math.min(available, available * (s.age < 18 ? 0.001 : 0.002), s.age < 18 ? 1000 : 10000);
+            const gift = Math.min(Math.floor(available), Math.max(1, Math.floor(budget * (0.5 + random(s) * 0.5))));
             s.cash += gift;
+            target.netWorth -= gift;
             return `${p.name} gave you ${money(gift)}.`;
           }
           return `${p.name} declined your request for money.`;
@@ -957,6 +962,7 @@ export function performAction(state, actionId, payload = {}) {
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('The action details are invalid.');
     if (action.minigame) return beginMiniGame(next, action.minigame, payload);
     const beforeStats = { ...next.stats };
+    const beforeProgress = { year: next.year, city: next.city, country: next.country, job: structuredClone(next.job), education: structuredClone(next.education), licenses:[...next.licenses] };
     if (action.cost) spend(next, action.cost);
     const message = action.execute(next, payload);
     for (const entity of next.relationships) {
@@ -977,6 +983,7 @@ export function performAction(state, actionId, payload = {}) {
       next.causeOfDeath = `complications following ${action.title.toLowerCase()}`;
       addLog(next, 'life', 'A life comes to an end', `You died at age ${next.age} from ${next.causeOfDeath}.`);
     }
+    syncBackgroundProgress(next, beforeProgress);
     addLog(next, category, action.title, message);
     checkAchievements(next);
     return { state: next, ok: true, message };

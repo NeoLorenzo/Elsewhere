@@ -4,8 +4,9 @@ import { MAJORS, ACHIEVEMENTS, SPECIAL_CAREERS } from './data.js';
 import { countriesForYear, countryForYear } from './countries.js';
 import { currentGame, advanceMiniGame } from './game-session.js';
 import { handValue } from './minigames.js';
-import { formatYear, calendarYearAtAge } from './calendar.js';
+import { formatYear, formatDate, calendarYearAtAge } from './calendar.js';
 import { characterAvatar, renderCharacterSheet, renderCharacterFields, readCharacterFields, refreshBuilder, renderBodyFields, renderPersonRoster } from './character-ui.js';
+import { renderBirthdayFields, refreshBirthdayFields, handleBackgroundClick, backgroundMarkdown } from './background-ui.js';
 
 const STORAGE = 'elsewhere.saves.v1';
 const SETTINGS = 'elsewhere.settings.v1';
@@ -112,7 +113,7 @@ function render() {
     <div class="sidebar-tagline">A life of possibilities.</div>
     <div class="nav-heading">YOUR WORLD</div>
     <nav>${NAV.map(([id,label])=>`<button class="nav-item ${active===id?'active':''}" data-nav="${id}" ${active===id?'aria-current="page"':''}>${icon(id)}<span>${label}</span>${id==='special'?'<span class="nav-new">NEW</span>':''}${active===id?'<span class="nav-dot"></span>':''}</button>`).join('')}</nav>
-    <div class="sidebar-bottom"><div class="little-quote">“It’s your life.<br>Make it a good story.”<span>ONE YEAR AT A TIME</span></div><button class="nav-item" data-command="settings">${icon('settings')}<span>Settings & saves</span></button><div class="build-label"><span class="live-dot"></span> LOCAL EDITION <span>v0.3</span></div></div>
+    <div class="sidebar-bottom"><div class="little-quote">“It’s your life.<br>Make it a good story.”<span>ONE YEAR AT A TIME</span></div><button class="nav-item" data-command="settings">${icon('settings')}<span>Settings & saves</span></button><div class="build-label"><span class="live-dot"></span> LOCAL EDITION <span>v0.4</span></div></div>
   </aside>
   <div class="nav-backdrop ${mobileNav?'visible':''}" data-command="close-nav"></div>
   <main class="workspace">
@@ -208,6 +209,7 @@ function newLifeModal() {
     <div class="form-pair"><label>First name<input name="firstName" maxlength="32" placeholder="Leave to randomise" autocomplete="off"></label><label>Last name<input name="lastName" maxlength="32" placeholder="Leave to randomise" autocomplete="off"></label></div>
     <div class="form-pair"><label>Identity<select name="gender" id="builder-gender"><option value="neutral">Non-binary</option><option value="female">Female</option><option value="male">Male</option></select></label><label>Starting age<input name="age" id="builder-age" type="number" min="0" max="120" step="1" value="0" required inputmode="numeric"></label></div>
     <label>Year of birth<input name="birthYear" type="number" min="1900" max="9007199254740000" step="1" value="2026" required inputmode="numeric"></label>
+    ${renderBirthdayFields(builderCharacter,{creating:true})}
     <div class="historical-note">Born in 1900 or later · Start at any age from 0 to 120. Your traits describe you at that age. Country names follow your birth year; labels simplify changes within each year. Careers and events use the shared game systems.</div>
     <div class="form-pair"><label>Birth country or territory<select name="country" id="country-select">${countries}</select></label><label>Birth city<select name="city" id="city-select">${(countryForYear(builderCharacter.country,builderCharacter.birthYear)?.cities||[]).map(city=>`<option>${esc(city)}</option>`).join('')}</select></label></div>
     <div id="builder-calendar" class="historical-note" role="status">${builderLocationSummary(builderCharacter.country,2026,0)}</div>
@@ -288,7 +290,7 @@ function profileModal() {
 function editCharacterModal() {
   if(state.minigame){toast('Finish your current game before editing your character.','error');return;}
   builderCharacter=structuredClone(state);
-  openModal(`<div class="modal-hero"><span class="eyebrow">MAKE THIS LIFE YOUR OWN</span><h2>Customise your character.</h2><p>Appearance, family descriptions, personality, and starting attributes.</p></div><div class="character-edit-meta"><span>${esc(state.firstName)} ${esc(state.lastName)} · Age ${state.age}</span><span>Born ${esc(formatYear(state.birthYear))}</span></div><form id="edit-character-form" class="modal-form">${renderCharacterFields(builderCharacter,{parents:state.relationships})}<div class="save-note">${icon('journal')}Changes are recorded in your journal. Your timeline, money, and relationships are kept.</div><button class="primary-button full-width" type="submit">Save character changes ${icon('check')}</button></form>`,true);
+  openModal(`<div class="modal-hero"><span class="eyebrow">MAKE THIS LIFE YOUR OWN</span><h2>Customise your character.</h2><p>Birthday, family wealth, background, appearance and current traits.</p></div><div class="character-edit-meta"><span>${esc(state.firstName)} ${esc(state.lastName)} · Age ${state.age}</span><span>Born ${esc(state.birthDate?formatDate(state.birthDate):formatYear(state.birthYear))}</span></div><form id="edit-character-form" class="modal-form">${renderCharacterFields(builderCharacter,{parents:state.relationships})}<div class="save-note">${icon('journal')}Changes are recorded in your journal. Your background, birthday and family edits are saved with this life.</div><button class="primary-button full-width" type="submit">Save character changes ${icon('check')}</button></form>`,true);
 }
 function reportModal() {
   const a=state.annual||{};
@@ -306,7 +308,7 @@ function settingsModal() {
 function persistSettings() {try{localStorage.setItem(SETTINGS,JSON.stringify(settings));}catch{}document.documentElement.dataset.theme=settings.theme;document.documentElement.dataset.motion=settings.reduceMotion?'reduced':'full';}
 function download(name,body,type='application/json') {const url=URL.createObjectURL(new Blob([body],{type}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),5000);}
 function aboutModal() {
-  openModal(`<div class="modal-hero"><span class="brand-mark">e</span><span class="eyebrow">LOCAL EDITION · VERSION 0.3</span><h2>A life of possibilities.</h2><p>Elsewhere is an original, independently built life simulator.</p></div><div class="about-copy"><p>This playable foundation connects ageing, education, careers, family, wellbeing, property, investing, crime, specialist paths, and generations.</p><p>Systems are simplified and still being developed. It does not claim exhaustive feature parity with another game. All story text and visuals are original.</p><p>Play is local to this browser. There are no ads, purchases, accounts, or external game services. The game uses one fictional dollar economy across all locations.</p><p>Research, architecture, test instructions, and the feature matrix are in the project’s <strong>docs</strong> folder.</p></div><button class="primary-button full-width spaced" data-command="close-modal">Back to my story ${icon('arrow')}</button>`);
+  openModal(`<div class="modal-hero"><span class="brand-mark">e</span><span class="eyebrow">LOCAL EDITION · VERSION 0.4</span><h2>A life of possibilities.</h2><p>Elsewhere is an original, independently built life simulator.</p></div><div class="about-copy"><p>This playable foundation connects ageing, education, careers, family, wellbeing, property, investing, crime, specialist paths, and generations.</p><p>Systems are simplified and still being developed. It does not claim exhaustive feature parity with another game. All story text and visuals are original.</p><p>Play is local to this browser. There are no ads, purchases, accounts, or external game services. The game uses one fictional dollar economy across all locations.</p><p>Research, architecture, test instructions, and the feature matrix are in the project’s <strong>docs</strong> folder.</p></div><button class="primary-button full-width spaced" data-command="close-modal">Back to my story ${icon('arrow')}</button>`);
 }
 const commands = {
   'menu':()=>{mobileNav=!mobileNav;render();},'close-nav':()=>{mobileNav=false;render();},
@@ -316,9 +318,11 @@ const commands = {
   'undo':()=>{if(!previous)return;const next=previous;previous=null;state=next;save();render();toast('Your last step has been rewound.');},
   'export':()=>{download(`elsewhere-${state.firstName.toLowerCase().replace(/[^a-z0-9]/g,'')}-age-${state.age}.json`,JSON.stringify({game:'elsewhere',version:1,state},null,2));toast('Save exported. Keep it somewhere safe.');},
   'import':()=>$('#import-file')?.click(),
+  'export-cv':()=>{download(`elsewhere-cv-${state.firstName.toLowerCase()}.md`,backgroundMarkdown(state),'text/markdown');toast('Your CV has been exported.');},
   'export-journal':()=>{download(`elsewhere-journal-${state.age}.md`,`# ${state.firstName} ${state.lastName} — a life in Elsewhere\n\n${state.journal.map(e=>`## Age ${e.age} · ${e.title}\n\n${e.text}`).join('\n\n')}`,'text/markdown');toast('Your life journal has been exported.');},
 };
 document.addEventListener('click',event=>{
+  if(handleBackgroundClick(event,builderCharacter))return;
   const sheetTab=event.target.closest('[data-sheet-tab]');if(sheetTab){const sheet=sheetTab.closest('.character-sheet');sheet.querySelectorAll('[data-sheet-tab]').forEach(button=>button.setAttribute('aria-selected',String(button===sheetTab)));sheet.querySelectorAll('[data-sheet-panel]').forEach(panel=>panel.hidden=panel.dataset.sheetPanel!==sheetTab.dataset.sheetTab);return;}
   const person=event.target.closest('[data-person-id]');if(person){const found=state.relationships.find(p=>p.id===person.dataset.personId);if(found)openModal(renderCharacterSheet(found),true);return;}
   if(event.target.closest('.identity-person')){profileModal();return;}
@@ -343,9 +347,11 @@ document.addEventListener('input',event=>{
   if(event.target.id==='builder-age'||event.target.id==='builder-gender')updateStartingProfile(event.target.closest('form'));
   if(event.target.name==='birthYear'&&event.target.closest('#new-life-form')){event.target.closest('form').dataset.birthEdited='true';refreshBirthLocation(event.target.closest('form'));}
   const builder=event.target.closest('#new-life-form,#edit-character-form');if(builder&&builderCharacter&&event.target.name!=='seed'){event.target.dataset.edited='true';refreshBuilder(builder,event.target,builderCharacter);}
+  if(builder&&['birthMonth','birthDay','birthYear'].includes(event.target.name))refreshBirthdayFields(builder,builderCharacter);
   if(event.target.id==='action-search'){const selection=event.target.selectionStart;search=event.target.value;const y=window.scrollY;render();const input=$('#action-search');input.focus();input.setSelectionRange(selection,selection);window.scrollTo(0,y);}
 });
 document.addEventListener('change',async event=>{
+  if(['birthMonth','birthDay'].includes(event.target.name)&&event.target.closest('form'))refreshBirthdayFields(event.target.closest('form'),builderCharacter);
   if(event.target.id==='builder-age'||event.target.id==='builder-gender'){
     const form=event.target.closest('form');updateStartingProfile(form);
     refreshBuilder(form,event.target,builderCharacter);

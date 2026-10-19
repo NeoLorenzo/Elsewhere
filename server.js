@@ -7,7 +7,7 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || 3000);
 const types = {'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.json':'application/json; charset=utf-8','.md':'text/plain; charset=utf-8'};
 async function revision() {
-  const files = ['index.html','src/app.js','src/styles.css','src/engine.js','src/data.js','src/countries.js','src/systems.js','src/minigames.js','src/game-session.js','src/character.js','src/character-ui.js','src/character.css','src/calendar.js'];
+  const files = ['index.html','src/app.js','src/styles.css','src/engine.js','src/data.js','src/countries.js','src/systems.js','src/minigames.js','src/game-session.js','src/character.js','src/character-ui.js','src/character.css','src/calendar.js','src/background.js','src/background-ui.js','src/background-events.js'];
   const stats = await Promise.all(files.map(file => stat(path.join(root,file)).catch(()=>({mtimeMs:0}))));
   return Math.max(...stats.map(s=>s.mtimeMs));
 }

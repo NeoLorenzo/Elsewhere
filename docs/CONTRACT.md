@@ -2,6 +2,10 @@
 
 Plain browser ES modules, no dependencies; Node 22 static dev server. Parent owns UI, CSS, server, integration. Agents own designated files only. Original content; no copied game text or assets.
 
+Version0.4 additions: player `birthDate:{year,month,day}` and current birthday `date:{year,month,day}` accompany the compatible `birthYear/year/age` fields. Each parent relationship carries its own signed `netWorth`. Player and optional heir `background` use a separately versioned schema for education, work, skills, languages, certifications, volunteering, projects, awards, interests, references and contact details. See [BACKGROUND.md](BACKGROUND.md) for every field, enum, validation rule and connection to gameplay. `createLife` and `customizeCharacter` accept these values; save normalization and JSON export preserve them.
+
+The original baseline contract below remains a compatibility reference. The current engine also imports calendar, character, country and background modules. The background schema and individual detailed character contract supersede its earlier minimal person records.
+
 ## Shared state (JSON serializable)
 `{version:1,id,seed,rng,firstName,lastName,gender,country,city,age,year,alive:true,causeOfDeath:null,stats:{happiness,health,smarts,looks,discipline,karma,fame},cash,debt,education:{level:'none',enrolled:null,yearsLeft:0,grades:60,major:null},job:null,relationships:[],assets:[],investments:[],business:null,specialCareer:null,prison:{years:0,record:0,heat:0},skills:{fitness:0,music:0,acting:0,athletics:0,writing:0,coding:0,crime:0},conditions:[],licenses:[],social:{followers:0,posts:0},journal:[],achievements:[],history:[],flags:{},annual:{income:0,tax:0,expenses:0,net:0},pendingEvent:null,generation:1,ancestors:[],actionCounts:{}}`.
 

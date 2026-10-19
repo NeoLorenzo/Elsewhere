@@ -1,5 +1,11 @@
 # Verification record
 
+## Birthdays and CV backgrounds — version 0.4, 19 October 2026
+
+`npm run check` passes **149 tests**. New tests cover leap-century dates and February 29 observation, birthday editing, old saves, each parent's signed net worth, funded gifts and one-time positive estate transfers, every CV collection, chronology and duplicate-current-job validation, degree gates, current custom jobs/courses, imports without progress resets, automatic school progression, job transitions, licence records and legacy continuity. Existing engine/action/minigame/country tests continue to pass.
+
+Browser verification created Morgan Reed at age 36, born 9 July 1990, with mother net worth $2,500,000 and father net worth −$12,000, a Northbridge University BSc 2008–2012, Junior Developer role 2012–2017, current Orchard Studio Software Developer role from 2018 at $65,000, a personal summary and native English. The CV tab displayed the separate structured records. Birthday, family balances and all entered history persisted after reload. Advancing to age 37 retained the CV, paid $65,000, settled $13,680 tax and $2,600 expenses, and produced $48,720 cash. The checked session reported no console warnings/errors. Local screenshot: `artifacts/birthday-cv.png` (ignored by Git).
+
 ## Countries and current-age creation — version 0.3, 19 October 2026
 
 `npm run check` passes **127 tests** and `npm run build` produces the static module graph. The country fixture checks the exact 193 UN member geography IDs plus Taiwan, Palestine, Vatican City and Kosovo, not just the total of 197. Regression checks cover all existing location IDs/balance, historical transition boundaries, historical city aliases, year-dependent migration choices, arbitrary starting ages0–120, current body measurements, birthday growth and pre-1900 save migration without losing progress.

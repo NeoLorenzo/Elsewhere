@@ -12,7 +12,7 @@
 .character-metrics {display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 .character-metric {padding:17px 14px;border:1px solid var(--border);background:var(--surface-alt);border-radius:10px;min-width:0}
 .character-metric>span {display:block;font-size:9px;color:var(--muted);margin-bottom:9px}
-.character-metric strong {display:block;font-family:var(--heading);font-size:23px;letter-spacing:-.8px;font-weight:650;color:var(--purple);line-height:1.4}
+.character-metric strong {display:block;font-family:var(--heading);font-size:23px;letter-spacing:-.8px;font-weight:650;color:var(--purple);line-height:1.4;overflow-wrap:anywhere}
 .character-metric strong small {font-family:var(--body);font-size:10px;letter-spacing:0;margin-left:5px;font-weight:400;color:var(--muted)}
 .character-metric em {display:block;font-size:8px;font-style:normal;color:var(--muted);line-height:1.8;margin-top:7px}
 .capacities-grid {display:grid;grid-template-columns:1fr 1fr;gap:21px 24px;margin-bottom:22px}
@@ -78,7 +78,40 @@
 .identity-person:hover .identity-name {color:var(--purple)}
 .sheet-skills {margin-top:20px;padding-top:5px}
 .character-edit-meta {display:flex;justify-content:space-between;align-items:center;margin:0 0 18px;font-size:10px;color:var(--subtext)}
+.birthday-fields {margin-top:-4px}
+.birthday-note {font-size:10px;line-height:1.8;color:var(--muted);margin:0}
+.cv-collection {border:1px solid var(--border);border-radius:10px;padding:0 14px 15px;min-width:0}
+.cv-collection>summary {display:flex;align-items:center;gap:9px;padding:16px 0;font:600 13px var(--heading);cursor:pointer}
+.cv-collection:not([open]) {padding-bottom:0}
+.cv-collection>summary>span {display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;border-radius:20px;background:var(--purple-wash);color:var(--purple);font:500 10px var(--body)}
+.cv-record {margin:0 0 18px;border:1px solid var(--border);border-radius:8px;padding:16px 13px 13px;min-width:0;background:var(--surface-alt)}
+.cv-record>legend {padding:0 6px;font-size:10px;font-weight:600;color:var(--purple)}
+.cv-record-fields {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 14px;min-width:0}
+.cv-record-fields>label {display:flex;flex-direction:column;gap:8px;min-width:0;font-size:11px;font-weight:500;color:var(--subtext)}
+.cv-record-fields input,.cv-record-fields select {width:100%;min-width:0;max-width:100%;font-size:12px}
+.cv-wide {grid-column:1/-1}
+.cv-record-fields>.cv-check {flex-direction:row;align-items:center;gap:9px;line-height:1.6;align-self:center}
+.modal-form .cv-check input[type=checkbox] {width:16px;height:16px;min-height:16px;flex:0 0 16px;padding:0;accent-color:var(--purple)}
+.cv-remove {font-size:10px;margin-top:16px;color:var(--muted)}
+.cv-add {font-size:11px;width:100%;justify-content:center;margin-top:2px}
+.cv-sheet-heading {display:flex;align-items:center;justify-content:space-between;gap:16px;margin:6px 0 22px}
+.cv-sheet-heading h3 {font:650 23px var(--heading);letter-spacing:-.7px;margin-top:9px}
+.cv-sheet-heading .text-link {font-size:11px;flex-shrink:0}
+.cv-personal-summary,.cv-description {white-space:pre-wrap;overflow-wrap:anywhere}
+.cv-personal-summary {font-size:13px;line-height:1.9;margin-bottom:17px;color:var(--subtext)}
+.cv-contact {display:flex;flex-wrap:wrap;gap:9px 17px;padding:13px 0 19px;border-bottom:1px solid var(--border);font-size:10px;color:var(--muted);overflow-wrap:anywhere}
+.cv-empty {font-size:12px;line-height:1.9;color:var(--muted);padding:17px 0}
+.cv-history {padding:19px 0 4px;border-bottom:1px solid var(--border)}
+.cv-history h4 {font:600 13px var(--heading);margin:0 0 18px;color:var(--ink)}
+.cv-history h4>span {font:400 10px var(--body);margin-left:7px;color:var(--muted)}
+.cv-entry {padding:0 0 19px;min-width:0;overflow-wrap:anywhere}
+.cv-entry-heading {display:flex;align-items:baseline;justify-content:space-between;gap:14px}
+.cv-entry-heading strong {font-size:12px;font-weight:600;line-height:1.7}
+.cv-entry-heading small {font-size:10px;color:var(--purple);flex-shrink:0}
+.cv-entry p {font-size:11px;line-height:1.9;color:var(--subtext);margin:5px 0 0}
+.cv-entry>small {font-size:10px;color:var(--muted)}
 @container (max-width:500px) {
+  .cv-entry-heading {flex-direction:column;gap:2px}
   .personality-intro {grid-template-columns:1fr;gap:6px}
   .personality-radar {max-width:360px;min-height:220px}
   .personality-intro h3 br {display:none}
@@ -94,6 +127,12 @@
   .character-metric strong {font-size:22px}
 }
 @media(max-width:640px) {
+  .sheet-tabs {gap:2px}
+  .sheet-tabs>button {font-size:10px;padding:10px 3px}
+  .cv-record-fields {grid-template-columns:1fr}
+  .cv-record-fields input,.cv-record-fields select {font-size:16px}
+  .cv-record {padding:16px 11px}
+  .cv-collection {padding-left:11px;padding-right:11px}
   .character-sheet {padding:19px 17px}
   .character-sheet-hero {gap:17px;padding-top:5px}
   .character-sheet-hero .avatar {width:63px;height:63px}
