@@ -1,6 +1,6 @@
 # Elsewhere game design specification
 
-Version 0.2 character expansion, 19 October 2026 (original baseline: 18 October 2026). This document specifies an original, local-first life simulator and its progression toward a deeper game. Statements labelled **current** describe code inspected in this repository. Targets and acceptance criteria describe required outcomes for later milestones; they are not claims of completed work. See [the coverage audit](FEATURE-MATRIX.md) and [research notes](RESEARCH.md) for external inspiration and explicit gaps.
+Version 0.3 countries and current-age creation, 19 October 2026 (original baseline: 18 October 2026). This document specifies an original, local-first life simulator and its progression toward a deeper game. Statements labelled **current** describe code inspected in this repository. Targets and acceptance criteria describe required outcomes for later milestones; they are not claims of completed work. See [the coverage audit](FEATURE-MATRIX.md) and [research notes](RESEARCH.md) for external inspiration and explicit gaps.
 
 ## Product promise
 
@@ -10,7 +10,7 @@ The target feeling is curiosity about the next year. Planning should matter, cha
 
 ## Player experience
 
-1. Begin at birth or age eighteen, choose a birth year in BCE/CE, identity and location, appearance, parents’ descriptions, detailed attributes and personality; optionally supply a seed.
+1. Begin at any whole-number age from 0 to 120, choose a birth year of 1900 or later, identity and an era-aware location, appearance, parents’ descriptions, current attributes and personality; optionally supply a seed.
 2. Read the current life stage, school/job, cash, net worth, wellbeing and recent relationships.
 3. Explore education, career, relationships, activities, assets, finance, crime or special paths. Locked actions explain their conditions.
 4. Choose a limited set of activities. Costs and important risks should be visible before committing. Dynamic forms collect amounts or named choices.
@@ -22,7 +22,7 @@ The target feeling is curiosity about the next year. Planning should matter, cha
 
 ## Architecture and state ownership
 
-- `data.js` owns authored definitions: twenty countries, name pools, eighty-five jobs, twenty-eight majors, twenty-seven assets, twelve special career records, ninety-two events and twenty-two achievements.
+- `data.js` owns authored definitions: name pools, eighty-five jobs, twenty-eight majors, twenty-seven assets, twelve special career records, ninety-two events and twenty-two achievements. `countries.js` owns the expanded global catalogue, year-specific country names and city aliases.
 - `engine.js` owns seeded randomness, creation, annual updates, event resolution, net worth, normalisation, death, inheritance and achievement checks.
 - `systems.js` owns action descriptors and atomic action transactions. It imports data and engine helpers, validates at execution time, applies costs/results and logs outcomes.
 - `minigames.js` owns pure deterministic blackjack and prison-grid rules; `game-session.js` validates session entry, reconstructs moves and settles money or prison consequences into life state.

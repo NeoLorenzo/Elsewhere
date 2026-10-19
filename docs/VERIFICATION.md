@@ -1,5 +1,15 @@
 # Verification record
 
+## Countries and current-age creation — version 0.3, 19 October 2026
+
+`npm run check` passes **127 tests** and `npm run build` produces the static module graph. The country fixture checks the exact 193 UN member geography IDs plus Taiwan, Palestine, Vatican City and Kosovo, not just the total of 197. Regression checks cover all existing location IDs/balance, historical transition boundaries, historical city aliases, year-dependent migration choices, arbitrary starting ages0–120, current body measurements, birthday growth and pre-1900 save migration without losing progress.
+
+Browser verification confirmed 197 choices, the birth-year minimum of1900, Russian Empire in1900, Soviet Union in1950 and Russia in2000. Created Rowan Vale at age27, born1930 in British India, beginning in1957 in Bombay, India, with IQ142, strength73, height190cm, weight88kg and body fat17%. All values persisted after reload; the checked browser session reported no console warnings or errors. Existing Avery's pre-1900 save retained age18 and its profile while shifting to a1900 birth date and displaying the calendar migration journal notice. Saved UI evidence: `artifacts/age-countries.png` (local, ignored by Git).
+
+The creator uses current traits only. The former future-size controls have been removed. A browser-discovered age-input issue was corrected so unedited generated measurements update immediately when the starting age changes. The country model uses yearly geographical labels rather than precise historical borders; jobs, laws, events and economics remain shared game systems. See [COUNTRIES.md](COUNTRIES.md).
+
+The records below describe earlier releases; their unrestricted BCE creation behavior was superseded by version0.3.
+
 ## Character expansion — 19 October 2026
 
 The updated check suite passes **103 tests**, covering all previous systems plus personality generation, IQ/knowledge separation, calendar validation/BCE crossings, detailed profile migration, edited health components, adult growth targets, inherited profiles, appearance parsing, physique-dependent capacity and individual NPC outcomes.

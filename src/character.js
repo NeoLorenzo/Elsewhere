@@ -170,10 +170,15 @@ function normalizeBody(raw, patch, age, gender, seed, parents) {
     defaults.adultWeightKg *= (defaults.adultHeightCm / bodyDefaults(age, gender, seed).adultHeightCm) ** 2;
   }
   const limits = bodyLimits(age);
-  const adultHeightCm = rating(input.adultHeightCm, age >= 18 && finite(input.heightCm) ? input.heightCm / heightFactor(age) : defaults.adultHeightCm, 100, 240);
+  // Current-size edits describe this character now. Derive the stored growth
+  // curve from that size rather than retaining an unrelated generated future.
+  // Imports supply raw stored potentials without a patch and keep them intact.
+  if (finite(patch?.heightCm) && !finite(patch?.adultHeightCm)) input.adultHeightCm = bound(patch.heightCm, limits.heightMin, limits.heightMax) / heightFactor(age);
+  if (finite(patch?.weightKg) && !finite(patch?.adultWeightKg)) input.adultWeightKg = bound(patch.weightKg, limits.weightMin, limits.weightMax) / weightFactor(age);
+  const adultHeightCm = rating(input.adultHeightCm, finite(input.heightCm) ? bound(input.heightCm, limits.heightMin, limits.heightMax) / heightFactor(age) : defaults.adultHeightCm, 100, 240);
   const adjustedWeight = defaults.adultWeightKg * (adultHeightCm / defaults.adultHeightCm) ** 2;
-  const adultWeightKg = rating(input.adultWeightKg, age >= 18 && finite(input.weightKg) ? input.weightKg / weightFactor(age) : adjustedWeight, 20, 350);
-  // A newly edited adult target updates current growth unless a current size was supplied too.
+  const adultWeightKg = rating(input.adultWeightKg, finite(input.weightKg) ? bound(input.weightKg, limits.weightMin, limits.weightMax) / weightFactor(age) : adjustedWeight, 20, 350);
+  // Explicit internal potentials still support old saves and inherited profiles.
   const replaceHeight = finite(patch?.adultHeightCm) && !finite(patch?.heightCm);
   const replaceWeight = finite(patch?.adultWeightKg) && !finite(patch?.weightKg);
   return {

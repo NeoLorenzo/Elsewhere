@@ -1,8 +1,9 @@
-import { COUNTRIES, JOBS, MAJORS, ASSETS, SPECIAL_CAREERS, FIRST_NAMES, LAST_NAMES } from './data.js';
+import { JOBS, MAJORS, ASSETS, SPECIAL_CAREERS, FIRST_NAMES, LAST_NAMES } from './data.js';
 import { addLog, random, clamp, checkAchievements } from './engine.js';
 import { beginMiniGame } from './game-session.js';
 import { ensureCharacter, reconcileCharacter, applyCharacterAction, personalityCompatibility, personalityModifier, physicalCapacity } from './character.js';
 import { calendarYearAtAge } from './calendar.js';
+import { countryForYear, countriesForYear } from './countries.js';
 
 const CATEGORIES = ['education', 'career', 'relationships', 'activities', 'assets', 'finance', 'crime', 'special'];
 const money = value => Math.round(value).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
@@ -11,7 +12,7 @@ const icons = { education: '🎓', career: '💼', relationships: '❤️', acti
 const living = state => state.relationships.filter(person => person.alive);
 const spouseOf = state => living(state).find(person => person.role === 'spouse');
 const partnerOf = state => living(state).find(person => ['partner', 'spouse', 'fiancé'].includes(person.role));
-const countryOf = state => COUNTRIES.find(country => country.id === state.country || country.name === state.country) || COUNTRIES[0];
+const countryOf = state => countryForYear(state.country, state.year);
 const count = (state, key) => state.actionCounts?.[key] || 0;
 const uid = (state, prefix) => `${prefix}-${state.age}-${Math.floor(random(state) * 0xFFFFFFFF).toString(36)}`;
 
@@ -532,7 +533,8 @@ function definitions(state, category) {
       for (const p of living(s).filter(p => ['partner', 'spouse', 'child'].includes(p.role))) p.bond = clamp(p.bond + 8);
       return 'You returned from a memorable holiday feeling refreshed and closer to your family.';
     }, { cost: 2000, gate: adult, group: 'Travel' });
-    for (const destination of COUNTRIES) {
+    const originCountry = countryOf(state);
+    for (const destination of countriesForYear(state.year)) {
       add(`activities:emigrate:${destination.id}`, `Move to ${destination.name}`, 'Emigrate, establish a new home, and leave your current job.', s => {
         s.country = destination.id;
         s.city = destination.cities[0];
@@ -542,7 +544,7 @@ function definitions(state, category) {
         s.flags.countriesVisited = (s.flags.countriesVisited || 0) + 1;
         change(s, { happiness: 8 });
         return `You emigrated to ${destination.name} and settled in ${s.city}. Look for new work in your new home.`;
-      }, { cost: 5000, group: 'Emigration', gate: () => adult() || (countryOf(state)?.id === destination.id ? 'You already live here.' : null) || (state.prison.record > 2 ? 'Your criminal record prevents this visa application.' : null) });
+      }, { cost: 5000, group: 'Emigration', gate: () => adult() || (originCountry?.id === destination.id ? 'You already live here.' : null) || (state.prison.record > 2 ? 'Your criminal record prevents this visa application.' : null) });
     }
     add('activities:socialjoin', 'Create a social media account', 'Start building an audience online.', s => {
       s.flags.socialAccount = true;

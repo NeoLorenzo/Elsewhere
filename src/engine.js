@@ -1,6 +1,7 @@
 import { COUNTRIES, FIRST_NAMES, LAST_NAMES, EVENTS, ACHIEVEMENTS } from './data.js';
 import { ensureCharacter, reconcileCharacter, ageCharacter, personalityModifier, overallHealth, HEALTH_COMPONENTS } from './character.js';
 import { validateYear, calendarYearAtAge, advanceCalendarYear } from './calendar.js';
+import { countryForYear } from './countries.js';
 
 export const clamp = (n, min = 0, max = 100) => Math.min(max, Math.max(min, Number.isFinite(Number(n)) ? Number(n) : min));
 const copy = value => structuredClone(value);
@@ -12,6 +13,43 @@ const statNames = ['happiness', 'health', 'smarts', 'looks', 'discipline', 'karm
 const profileKeys = ['appearance', 'personality', 'attributes', 'body', 'healthProfile'];
 const profileOptions = source => Object.fromEntries(profileKeys.filter(key => source?.[key] && typeof source[key] === 'object' && !Array.isArray(source[key])).map(key => [key, copy(source[key])]));
 const birthAt = (year, age) => calendarYearAtAge(year, -age);
+
+function startingAge(value) {
+  if (value === undefined) return 0;
+  const age = typeof value === 'string' && /^\d+$/.test(value.trim()) ? Number(value.trim()) : value;
+  if (typeof age !== 'number' || !Number.isInteger(age) || age < 0 || age > 120) throw new RangeError('Choose a whole-number starting age from 0 to 120.');
+  return age;
+}
+
+function migrateCalendar(raw) {
+  const age = Math.floor(number(raw.age, 0, 0, 120));
+  const birthYear = validateYear(raw.birthYear, birthAt(validateYear(raw.year, 2026), age));
+  if (birthYear >= 1900) return false;
+  const index = year => BigInt(year) - (year > 0 ? 1n : 0n);
+  const offset = index(1900) - index(birthYear);
+  const shift = value => {
+    let year;
+    try { year = validateYear(value); } catch { return value; }
+    const shifted = index(year) + offset;
+    const historical = shifted >= 0n ? shifted + 1n : shifted;
+    const limit = BigInt(Number.MAX_SAFE_INTEGER);
+    return Number(historical < -limit ? -limit : historical > limit ? limit : historical);
+  };
+  raw.originalBirthYear = validateYear(raw.originalBirthYear, birthYear);
+  raw.birthYear = 1900;
+  raw.year = calendarYearAtAge(1900, age);
+  for (const person of list(raw.relationships, 250)) if (person && typeof person === 'object') {
+    if (person.birthYear !== undefined) person.birthYear = shift(person.birthYear);
+    if (person.year !== undefined) person.year = shift(person.year);
+  }
+  for (const record of [...list(raw.journal, 1800), ...list(raw.history, 1000), ...list(raw.ancestors, 100)]) {
+    if (record && typeof record === 'object') {
+      if (record.year !== undefined) record.year = shift(record.year);
+      if (record.birthYear !== undefined) record.birthYear = shift(record.birthYear);
+    }
+  }
+  return true;
+}
 
 function ensureHuman(entity, year, options = {}) {
   if (entity.role === 'pet' || entity.species) return entity;
@@ -55,8 +93,8 @@ export function random(state) {
 const pick = (state, items) => items[Math.floor(random(state) * items.length)];
 const roll = (state, low, high) => low + Math.floor(random(state) * (high - low + 1));
 const uid = (state, prefix) => `${prefix}-${state.age}-${Math.floor(random(state) * 0xffffffff).toString(36)}`;
-const countryFor = value => COUNTRIES.find(c => c.id === value || c.name === value)
-  || COUNTRIES.find(c => /^(uk|gb|gbr)$/i.test(c.id) || /united kingdom/i.test(c.name)) || COUNTRIES[0];
+const countryFor = (value, year = 2026) => countryForYear(value, year) || countryForYear('uk', year) || COUNTRIES[0];
+const cityAlias = (country, city) => Object.hasOwn(country?.cityAliases || {}, city) ? text(country.cityAliases[city], city) : city;
 const living = (state, role) => state.relationships.filter(r => r.alive && (!role || r.role === role));
 
 export function addLog(state, category, title, message) {
@@ -77,14 +115,18 @@ function educationAt(age) {
 export function createLife(options = {}) {
   const seed = seedValue(options.seed);
   const gender = ['female', 'male', 'neutral'].includes(options.gender) ? options.gender : 'neutral';
-  const age = Math.floor(number(options.age, 0, 0, 120));
-  const country = countryFor(options.country);
+  const age = startingAge(options.age);
   const birthYear = options.birthYear === undefined ? birthAt(2026, age) : validateYear(options.birthYear);
+  if (birthYear < 1900) throw new RangeError('New lives must have a birth year of 1900 or later.');
   if (Math.abs(birthYear) > Number.MAX_SAFE_INTEGER - 256) throw new RangeError('Choose a birth year with at least 256 years of safe calendar headroom.');
+  const year = calendarYearAtAge(birthYear, age);
+  const country = countryFor(options.country, year);
+  const requestedCity = text(options.city);
+  const city = cityAlias(country, requestedCity);
   const state = {
     version: 1, id: `life-${seed.toString(36)}`, seed, rng: seed, firstName: '', lastName: '', gender,
-    country: country?.id || 'uk', city: text(options.city) || (country?.cities?.includes('London') ? 'London' : country?.cities?.[0] || 'London'),
-    age, birthYear, year: calendarYearAtAge(birthYear, age), alive: true, causeOfDeath: null,
+    country: country?.id || 'uk', city: city || (country?.cities?.includes('London') ? 'London' : country?.cities?.[0] || 'London'),
+    age, birthYear, year, alive: true, causeOfDeath: null,
     stats: { happiness: 75, health: 90, smarts: 50, looks: 50, discipline: 50, karma: 65, fame: 0 },
     cash: 0, debt: 0, education: educationAt(age), job: null, relationships: [], assets: [], investments: [],
     business: null, specialCareer: null, prison: { years: 0, record: 0, heat: 0 },
@@ -229,7 +271,7 @@ function annualRelationships(state) {
 }
 
 function annualFinances(state, incarcerated) {
-  const country = countryFor(state.country);
+  const country = countryFor(state.country, state.year);
   let income = 0, tax = 0, expenses = 0;
   if (state.job && !incarcerated) {
     state.job.years++;
@@ -328,7 +370,11 @@ export function ageUp(input) {
   const beforeStats = copy(state.stats);
   const personStats = new Map(state.relationships.map(person => [person.id, copy(person.stats || {})]));
   const previousAge = state.age;
+  const previousCountry = countryFor(state.country, state.year);
   state.age++; state.year = advanceCalendarYear(state.year); state.actionCounts = {};
+  const currentCountry = countryFor(state.country, state.year);
+  if (cityAlias(currentCountry, state.city) !== state.city) state.city = cityAlias(currentCountry, state.city);
+  else if (!currentCountry.cities.includes(state.city) && previousCountry.cities.includes(state.city)) state.city = currentCountry.cities[previousCountry.cities.indexOf(state.city)] || state.city;
   addLog(state, 'life', `Age ${state.age}`, `Another year of my life began in ${state.city}.`);
   const incarcerated = state.prison.years > 0;
   annualEducation(state);
@@ -441,11 +487,13 @@ export function normalizeState(input) {
   if (raw.version !== 1 || typeof raw.firstName !== 'string' || typeof raw.lastName !== 'string' || !raw.stats || typeof raw.stats !== 'object') {
     throw new Error('Unsupported or incomplete save file.');
   }
+  const migratedCalendar = migrateCalendar(raw);
   const state = createLife({ seed: raw.seed, firstName: raw.firstName, lastName: raw.lastName, gender: raw.gender,
-    country: raw.country, city: raw.city, age: raw.age,
+    country: raw.country, city: raw.city, age: Math.floor(number(raw.age, 0, 0, 120)),
     birthYear: validateYear(raw.birthYear, birthAt(validateYear(raw.year, 2026), Math.floor(number(raw.age, 0, 0, 120)))) });
   state.id = text(raw.id, state.id, 100); state.seed = seedValue(raw.seed); state.rng = number(raw.rng, state.seed, 0, 0xffffffff) >>> 0;
   state.year = calendarYearAtAge(state.birthYear, state.age);
+  if (raw.originalBirthYear !== undefined) state.originalBirthYear = validateYear(raw.originalBirthYear, state.birthYear);
   state.alive = raw.alive !== false; state.causeOfDeath = state.alive ? null : text(raw.causeOfDeath, 'natural causes');
   for (const key of statNames) state.stats[key] = number(raw.stats[key], state.stats[key]);
   state.cash = money(number(raw.cash, 0, 0, 1e15)); state.debt = money(number(raw.debt, 0, 0, 1e15));
@@ -541,6 +589,10 @@ export function normalizeState(input) {
   Object.assign(state, profileOptions(raw));
   ensureHuman(state, state.year, { seed: state.seed });
   for (const person of state.relationships) ensureHuman(person, state.year, { seed: state.seed });
+  if (migratedCalendar && !state.flags.calendarMigrationNotice) {
+    state.flags.calendarMigrationNotice = true;
+    addLog(state, 'life', 'Calendar updated', 'My saved story was moved to a birth year of 1900. My age, experiences, relationships, and progress were preserved.');
+  }
   return state;
 }
 

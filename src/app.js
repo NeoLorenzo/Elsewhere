@@ -1,11 +1,11 @@
 import { createLife, ageUp, resolveEvent, netWorth, normalizeState, continueLegacy, customizeCharacter } from './engine.js';
 import { getActions, performAction } from './systems.js';
-import { COUNTRIES, MAJORS, ACHIEVEMENTS, SPECIAL_CAREERS } from './data.js';
+import { MAJORS, ACHIEVEMENTS, SPECIAL_CAREERS } from './data.js';
+import { countriesForYear, countryForYear } from './countries.js';
 import { currentGame, advanceMiniGame } from './game-session.js';
 import { handValue } from './minigames.js';
 import { formatYear, calendarYearAtAge } from './calendar.js';
 import { characterAvatar, renderCharacterSheet, renderCharacterFields, readCharacterFields, refreshBuilder, renderBodyFields, renderPersonRoster } from './character-ui.js';
-import { bodyDefaults } from './character.js';
 
 const STORAGE = 'elsewhere.saves.v1';
 const SETTINGS = 'elsewhere.settings.v1';
@@ -88,8 +88,8 @@ let modalReturnFocus = null;
 let mobileNav = false;
 let builderCharacter = null;
 
-function country(s=state) {return COUNTRIES.find(c=>c.id===s.country||c.name===s.country)||COUNTRIES[0];}
-function countryText(s=state) {const c=country(s);return `${c?.flag||'🌍'} ${s.city}, ${c?.name||s.country}`;}
+function country(s=state) {return countryForYear(s.country,s.year);}
+function countryText(s=state) {const c=country(s);return `${c?.flag||'🌍'} ${c?.cityAliases?.[s.city]||s.city}, ${c?.name||s.country}`;}
 function lifeStage() {return !state.alive?'A life remembered':state.age<5?'The early years':state.age<13?'Growing up':state.age<18?'Finding yourself':state.age<30?'A world of possibilities':state.age<50?'Making your mark':state.age<65?'In your element':'The golden years';}
 function occupation() {if(state.prison?.years>0)return `Incarcerated · ${state.prison.years} years remaining`;if(state.specialCareer)return state.specialCareer.title;if(state.job)return state.job.title;if(state.education.enrolled)return typeof state.education.enrolled==='string'?`${state.education.enrolled[0].toUpperCase()+state.education.enrolled.slice(1)} student`:'Student';if(state.age<5)return 'A whole life ahead';if(state.age<18)return 'School student';if(state.flags.retired)return 'Retired';return 'Finding a direction';}
 function avatar(s=state,small=false) {return characterAvatar(s,small);}
@@ -112,7 +112,7 @@ function render() {
     <div class="sidebar-tagline">A life of possibilities.</div>
     <div class="nav-heading">YOUR WORLD</div>
     <nav>${NAV.map(([id,label])=>`<button class="nav-item ${active===id?'active':''}" data-nav="${id}" ${active===id?'aria-current="page"':''}>${icon(id)}<span>${label}</span>${id==='special'?'<span class="nav-new">NEW</span>':''}${active===id?'<span class="nav-dot"></span>':''}</button>`).join('')}</nav>
-    <div class="sidebar-bottom"><div class="little-quote">“It’s your life.<br>Make it a good story.”<span>ONE YEAR AT A TIME</span></div><button class="nav-item" data-command="settings">${icon('settings')}<span>Settings & saves</span></button><div class="build-label"><span class="live-dot"></span> LOCAL EDITION <span>v0.2</span></div></div>
+    <div class="sidebar-bottom"><div class="little-quote">“It’s your life.<br>Make it a good story.”<span>ONE YEAR AT A TIME</span></div><button class="nav-item" data-command="settings">${icon('settings')}<span>Settings & saves</span></button><div class="build-label"><span class="live-dot"></span> LOCAL EDITION <span>v0.3</span></div></div>
   </aside>
   <div class="nav-backdrop ${mobileNav?'visible':''}" data-command="close-nav"></div>
   <main class="workspace">
@@ -200,21 +200,50 @@ function eventModal() {
   openModal(`<div class="modal-hero event-hero">${icon(categoryIcon(event.category))}<span class="eyebrow">AGE ${state.age} · A TURN IN THE STORY</span><h2>${esc(event.title)}</h2></div><p class="event-description">${esc(event.text)}</p><div class="event-choices">${event.choices.map((choice,i)=>`<button class="event-choice" data-choice="${i}"><span class="choice-letter">${String.fromCharCode(65+i)}</span><span>${esc(choice.label)}</span>${icon('arrow')}</button>`).join('')}</div><p class="modal-footnote">A choice today. A different tomorrow.</p>`);
 }
 function newLifeModal() {
-  const countries=COUNTRIES.map(c=>`<option value="${esc(c.id)}" ${c.id===state.country?'selected':''}>${esc(c.flag)} ${esc(c.name)}</option>`).join('');
   builderCharacter=createLife({country:state.country});
+  const countries=countriesForYear(builderCharacter.birthYear).map(c=>`<option value="${esc(c.id)}" ${c.id===builderCharacter.country?'selected':''}>${esc(c.flag)} ${esc(c.name)}</option>`).join('');
   openModal(`<div class="modal-hero"><span class="hero-glyph">✷</span><span class="eyebrow">ANOTHER WORLD IS WAITING</span><h2>Begin a new story.</h2><p>A family, a place in time, and a person in every detail.</p></div>
   <form id="new-life-form" class="modal-form">
     <input type="hidden" name="generatedSeed" value="${builderCharacter.seed}">
     <div class="form-pair"><label>First name<input name="firstName" maxlength="32" placeholder="Leave to randomise" autocomplete="off"></label><label>Last name<input name="lastName" maxlength="32" placeholder="Leave to randomise" autocomplete="off"></label></div>
-    <div class="form-pair"><label>Identity<select name="gender" id="builder-gender"><option value="neutral">Non-binary</option><option value="female">Female</option><option value="male">Male</option></select></label><label>Starting age<select name="age" id="builder-age"><option value="0">At birth · the whole journey</option><option value="18">At 18 · a new beginning</option></select></label></div>
-    <div class="birth-year-row"><label>Year of birth<input name="birthYear" type="number" min="1" max="9007199254740000" step="1" value="2026" required inputmode="numeric"></label><label>Era<select name="birthEra"><option value="CE">CE</option><option value="BCE">BCE</option></select></label></div>
-    <div class="historical-note">Choose any historical year, including BCE. There is no year zero. The calendar follows your birth year; countries, careers, and world events currently use the same game systems in every era.</div>
-    <div class="form-pair"><label>Country<select name="country" id="country-select">${countries}</select></label><label>City<select name="city" id="city-select">${(country()?.cities||[]).map(city=>`<option>${esc(city)}</option>`).join('')}</select></label></div>
+    <div class="form-pair"><label>Identity<select name="gender" id="builder-gender"><option value="neutral">Non-binary</option><option value="female">Female</option><option value="male">Male</option></select></label><label>Starting age<input name="age" id="builder-age" type="number" min="0" max="120" step="1" value="0" required inputmode="numeric"></label></div>
+    <label>Year of birth<input name="birthYear" type="number" min="1900" max="9007199254740000" step="1" value="2026" required inputmode="numeric"></label>
+    <div class="historical-note">Born in 1900 or later · Start at any age from 0 to 120. Your traits describe you at that age. Country names follow your birth year; labels simplify changes within each year. Careers and events use the shared game systems.</div>
+    <div class="form-pair"><label>Birth country or territory<select name="country" id="country-select">${countries}</select></label><label>Birth city<select name="city" id="city-select">${(countryForYear(builderCharacter.country,builderCharacter.birthYear)?.cities||[]).map(city=>`<option>${esc(city)}</option>`).join('')}</select></label></div>
+    <div id="builder-calendar" class="historical-note" role="status">${builderLocationSummary(builderCharacter.country,2026,0)}</div>
     <label>World seed <span class="optional">optional · custom attributes override generated values</span><input name="seed" maxlength="40" placeholder="A surprise from the universe" autocomplete="off"></label>
     ${renderCharacterFields(builderCharacter,{parents:builderCharacter.relationships,creating:true})}
     <div class="save-note">${icon('book')}Your current life is saved. You can return to it in Settings.</div>
     <button type="submit" class="primary-button full-width">Let’s see what happens ${icon('arrow')}</button>
   </form>`,true);
+}
+
+function builderLocationSummary(id,birthYear,age) {
+  const now=calendarYearAtAge(birthYear,age),origin=countryForYear(id,birthYear),current=countryForYear(id,now);
+  return `Born in ${esc(origin.name)} · Your story starts in ${esc(formatYear(now))}${current.name!==origin.name?` · Now ${esc(current.name)}`:''}.`;
+}
+function refreshBirthLocation(form) {
+  const birthYear=Number(form.elements.birthYear.value),age=Number(form.elements.age.value);
+  if(!Number.isSafeInteger(birthYear)||birthYear<1900||!Number.isInteger(age)||age<0||age>120)return;
+  const selected=form.elements.country.value,city=form.elements.city.value;
+  form.elements.country.innerHTML=countriesForYear(birthYear).map(c=>`<option value="${esc(c.id)}" ${c.id===selected?'selected':''}>${esc(c.flag)} ${esc(c.name)}</option>`).join('');
+  const location=countryForYear(form.elements.country.value,birthYear);
+  const selectedCity=location.cityAliases?.[city]||city;
+  form.elements.city.innerHTML=location.cities.map(name=>`<option ${name===selectedCity?'selected':''}>${esc(name)}</option>`).join('');
+  $('#builder-calendar',form).innerHTML=builderLocationSummary(location.id,birthYear,age);
+}
+function updateStartingProfile(form) {
+  const age=Number(form.elements.age.value),gender=form.elements.gender.value;
+  if(form.elements.age.value===''||!Number.isInteger(age)||age<0||age>120||!builderCharacter)return;
+  if(builderCharacter.age===age&&builderCharacter.gender===gender)return;
+  const editedBody=Object.fromEntries(['heightCm','weightKg','bodyFatPercent'].flatMap(key=>{const field=form.elements[`body.${key}`];return field?.dataset.edited&&field.value!==''?[[key,Number(field.value)]]:[];}));
+  const updated=createLife({seed:builderCharacter.seed,age,gender,country:form.elements.country.value});
+  builderCharacter={...builderCharacter,age,gender,body:updated.body,attributes:updated.attributes};
+  if(!form.dataset.birthEdited)form.elements.birthYear.value=2026-age;
+  $('#body-builder-inputs',form).innerHTML=renderBodyFields(builderCharacter);
+  for(const [key,value] of Object.entries(editedBody)){const field=form.elements[`body.${key}`];field.value=value;field.dataset.edited='true';}
+  for(const group of ['attributes','stats'])for(const [key,value] of Object.entries(updated[group])){const field=form.elements[`${group}.${key}`];if(field&&!field.dataset.edited){field.value=Math.round(value);field.dataset.original=String(value);}}
+  refreshBirthLocation(form);
 }
 function actionModal(action) {
   if(!state.alive){toast('This life has ended. You can continue the story through your legacy.','error');return;}
@@ -277,7 +306,7 @@ function settingsModal() {
 function persistSettings() {try{localStorage.setItem(SETTINGS,JSON.stringify(settings));}catch{}document.documentElement.dataset.theme=settings.theme;document.documentElement.dataset.motion=settings.reduceMotion?'reduced':'full';}
 function download(name,body,type='application/json') {const url=URL.createObjectURL(new Blob([body],{type}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),5000);}
 function aboutModal() {
-  openModal(`<div class="modal-hero"><span class="brand-mark">e</span><span class="eyebrow">LOCAL EDITION · VERSION 0.2</span><h2>A life of possibilities.</h2><p>Elsewhere is an original, independently built life simulator.</p></div><div class="about-copy"><p>This playable foundation connects ageing, education, careers, family, wellbeing, property, investing, crime, specialist paths, and generations.</p><p>Systems are simplified and still being developed. It does not claim exhaustive feature parity with another game. All story text and visuals are original.</p><p>Play is local to this browser. There are no ads, purchases, accounts, or external game services. The game uses one fictional dollar economy across all locations.</p><p>Research, architecture, test instructions, and the feature matrix are in the project’s <strong>docs</strong> folder.</p></div><button class="primary-button full-width spaced" data-command="close-modal">Back to my story ${icon('arrow')}</button>`);
+  openModal(`<div class="modal-hero"><span class="brand-mark">e</span><span class="eyebrow">LOCAL EDITION · VERSION 0.3</span><h2>A life of possibilities.</h2><p>Elsewhere is an original, independently built life simulator.</p></div><div class="about-copy"><p>This playable foundation connects ageing, education, careers, family, wellbeing, property, investing, crime, specialist paths, and generations.</p><p>Systems are simplified and still being developed. It does not claim exhaustive feature parity with another game. All story text and visuals are original.</p><p>Play is local to this browser. There are no ads, purchases, accounts, or external game services. The game uses one fictional dollar economy across all locations.</p><p>Research, architecture, test instructions, and the feature matrix are in the project’s <strong>docs</strong> folder.</p></div><button class="primary-button full-width spaced" data-command="close-modal">Back to my story ${icon('arrow')}</button>`);
 }
 const commands = {
   'menu':()=>{mobileNav=!mobileNav;render();},'close-nav':()=>{mobileNav=false;render();},
@@ -305,29 +334,24 @@ document.addEventListener('click',event=>{
 document.addEventListener('submit',event=>{
   if(event.target.id==='new-life-form'){
     event.preventDefault();const values=Object.fromEntries(new FormData(event.target));
-    try{const year=Number(values.birthYear);if(!Number.isSafeInteger(year)||year<1)throw new Error('Choose a whole-number birth year greater than zero.');const birthYear=values.birthEra==='BCE'?-year:year;const options={...readCharacterFields(event.target),age:Number(values.age),birthYear,gender:values.gender,country:values.country,city:values.city,seed:values.seed||Number(values.generatedSeed)};if(values.firstName.trim())options.firstName=values.firstName.trim();if(values.lastName.trim())options.lastName=values.lastName.trim();const next=createLife(options);save();state=next;previous=null;save();active='character';search='';closeModal();render();toast('Your story begins. Meet your character.');}catch(error){toast(error.message,'error');}
+    try{const birthYear=Number(values.birthYear);if(!Number.isSafeInteger(birthYear)||birthYear<1900)throw new Error('Choose a whole-number birth year of 1900 or later.');const options={...readCharacterFields(event.target),age:Number(values.age),birthYear,gender:values.gender,country:values.country,city:values.city,seed:values.seed||Number(values.generatedSeed)};if(values.firstName.trim())options.firstName=values.firstName.trim();if(values.lastName.trim())options.lastName=values.lastName.trim();const next=createLife(options);save();state=next;previous=null;save();active='character';search='';closeModal();render();toast('Your story begins. Meet your character.');}catch(error){toast(error.message,'error');}
   }
   if(event.target.id==='edit-character-form'){event.preventDefault();try{const next=customizeCharacter(state,readCharacterFields(event.target));checkpoint();state=next;save();closeModal();render();toast('Your character and family descriptions have been updated.');}catch(error){toast(error.message,'error');}}
   if(event.target.id==='action-form'){event.preventDefault();runAction(event.target.dataset.actionId,Object.fromEntries(new FormData(event.target)));}
 });
 document.addEventListener('input',event=>{
-  if(event.target.name==='birthYear'||event.target.name==='birthEra')event.target.closest('form').dataset.birthEdited='true';
+  if(event.target.id==='builder-age'||event.target.id==='builder-gender')updateStartingProfile(event.target.closest('form'));
+  if(event.target.name==='birthYear'&&event.target.closest('#new-life-form')){event.target.closest('form').dataset.birthEdited='true';refreshBirthLocation(event.target.closest('form'));}
   const builder=event.target.closest('#new-life-form,#edit-character-form');if(builder&&builderCharacter&&event.target.name!=='seed'){event.target.dataset.edited='true';refreshBuilder(builder,event.target,builderCharacter);}
   if(event.target.id==='action-search'){const selection=event.target.selectionStart;search=event.target.value;const y=window.scrollY;render();const input=$('#action-search');input.focus();input.setSelectionRange(selection,selection);window.scrollTo(0,y);}
 });
 document.addEventListener('change',async event=>{
   if(event.target.id==='builder-age'||event.target.id==='builder-gender'){
-    const form=event.target.closest('form');const age=Number(form.elements.age.value),gender=form.elements.gender.value;
-    const updated=createLife({seed:builderCharacter.seed,age,gender,country:form.elements.country.value});
-    builderCharacter={...builderCharacter,age,gender,body:updated.body,attributes:updated.attributes};
-    if(!form.dataset.birthEdited){form.elements.birthYear.value=2026-age;form.elements.birthEra.value='CE';}
-    $('#body-builder-inputs',form).innerHTML=renderBodyFields(builderCharacter);
-    for(const [key,value] of Object.entries(updated.attributes)){const field=form.elements[`attributes.${key}`];if(field&&!field.dataset.edited){field.value=Math.round(value);field.dataset.original=String(value);}}
-    for(const [key,value] of Object.entries(updated.stats)){const field=form.elements[`stats.${key}`];if(field&&!field.dataset.edited){field.value=Math.round(value);field.dataset.original=String(value);}}
+    const form=event.target.closest('form');updateStartingProfile(form);
     refreshBuilder(form,event.target,builderCharacter);
   }
   if(event.target.id==='show-locked'){showLocked=event.target.checked;render();}
-  if(event.target.id==='country-select'){const selected=COUNTRIES.find(c=>c.id===event.target.value);$('#city-select').innerHTML=(selected?.cities||[]).map(city=>`<option>${esc(city)}</option>`).join('');}
+  if(event.target.id==='country-select'||event.target.name==='birthYear')refreshBirthLocation(event.target.closest('form'));
   if(event.target.id==='theme-setting'){settings.theme=event.target.checked?'dark':'light';persistSettings();}
   if(event.target.id==='motion-setting'){settings.reduceMotion=event.target.checked;persistSettings();}
   if(event.target.id==='import-file'){

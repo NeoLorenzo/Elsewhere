@@ -8,7 +8,7 @@ Audit date: 18 October 2026. Baseline: `src/data.js`, `src/engine.js`, `src/syst
 
 | Feature family | Status | Implemented evidence | Limit or next step |
 | --- | --- | --- | --- |
-| Birth, origin and custom identity | Implemented | `createLife`; identity, place, seed, starting age, BCE/CE birth year, appearance, parent descriptions and editable attributes | Twenty modern countries; name pools are not country-specific; no era-specific world simulation |
+| Birth, origin and custom identity | Implemented | `createLife`; starting age0–120, birth year≥1900, global country catalogue with era names, city aliases, appearance, parent descriptions and current attributes | Year-level geography simplifies borders and occupations; name pools, jobs, events and economy share existing systems |
 | Age advancement and journal | Implemented | `ageUp`, annual journal entries and grouped journal UI | One-year steps; no childhood months or variable turn lengths |
 | Character stats and skills | Implemented | Detailed human profiles: IQ, capacities, body measurements, eight health systems, five traits/thirty facets; seven compatibility stats and seven skills | Ratings are synthetic; no clinical assessments, talent trees or separate instruments |
 | Life events | Implemented | Ninety-two original age-bounded events; contextual requirements and eight-event recent-history exclusion | Choices change cash/debt/stats; they do not currently create arbitrary relationship, condition or career story arcs |

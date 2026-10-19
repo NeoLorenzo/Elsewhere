@@ -1,27 +1,6 @@
 // All names, writing, scenarios and balance values are original to Elsewhere.
 // Costs and taxes are fictional game balance, not real-world financial estimates.
-export const COUNTRIES = [
-  {id:'uk',name:'United Kingdom',flag:'🇬🇧',cities:['London','Manchester','Edinburgh','Bristol','Cardiff'],tax:0.24,cost:1},
-  {id:'us',name:'United States',flag:'🇺🇸',cities:['New York','Los Angeles','Chicago','Austin','Seattle'],tax:0.26,cost:1.15},
-  {id:'ca',name:'Canada',flag:'🇨🇦',cities:['Toronto','Vancouver','Montreal','Halifax'],tax:0.27,cost:1.05},
-  {id:'au',name:'Australia',flag:'🇦🇺',cities:['Sydney','Melbourne','Perth','Brisbane'],tax:0.25,cost:1.08},
-  {id:'nz',name:'New Zealand',flag:'🇳🇿',cities:['Auckland','Wellington','Christchurch'],tax:0.23,cost:1.02},
-  {id:'ie',name:'Ireland',flag:'🇮🇪',cities:['Dublin','Cork','Galway'],tax:0.23,cost:1.02},
-  {id:'fr',name:'France',flag:'🇫🇷',cities:['Paris','Lyon','Bordeaux','Marseille'],tax:0.28,cost:1},
-  {id:'de',name:'Germany',flag:'🇩🇪',cities:['Berlin','Hamburg','Munich','Cologne'],tax:0.29,cost:0.98},
-  {id:'es',name:'Spain',flag:'🇪🇸',cities:['Madrid','Barcelona','Valencia','Seville'],tax:0.22,cost:0.85},
-  {id:'se',name:'Sweden',flag:'🇸🇪',cities:['Stockholm','Gothenburg','Malmö'],tax:0.32,cost:1.04},
-  {id:'jp',name:'Japan',flag:'🇯🇵',cities:['Tokyo','Osaka','Kyoto','Sapporo'],tax:0.25,cost:1.01},
-  {id:'kr',name:'South Korea',flag:'🇰🇷',cities:['Seoul','Busan','Incheon'],tax:0.23,cost:0.95},
-  {id:'in',name:'India',flag:'🇮🇳',cities:['Mumbai','Delhi','Bengaluru','Chennai'],tax:0.18,cost:0.56},
-  {id:'br',name:'Brazil',flag:'🇧🇷',cities:['São Paulo','Rio de Janeiro','Salvador','Recife'],tax:0.19,cost:0.65},
-  {id:'mx',name:'Mexico',flag:'🇲🇽',cities:['Mexico City','Guadalajara','Monterrey'],tax:0.18,cost:0.62},
-  {id:'za',name:'South Africa',flag:'🇿🇦',cities:['Cape Town','Johannesburg','Durban'],tax:0.19,cost:0.66},
-  {id:'ng',name:'Nigeria',flag:'🇳🇬',cities:['Lagos','Abuja','Ibadan'],tax:0.15,cost:0.52},
-  {id:'sg',name:'Singapore',flag:'🇸🇬',cities:['Singapore'],tax:0.14,cost:1.2},
-  {id:'ae',name:'United Arab Emirates',flag:'🇦🇪',cities:['Dubai','Abu Dhabi','Sharjah'],tax:0.08,cost:1.12},
-  {id:'it',name:'Italy',flag:'🇮🇹',cities:['Rome','Milan','Naples','Florence'],tax:0.26,cost:0.92}
-];
+export { COUNTRIES } from './countries.js';
 
 export const FIRST_NAMES = {
   female:['Amelia','Sofia','Maya','Zara','Isla','Amara','Mei','Priya','Nora','Aisha','Valentina','Freya','Hana','Elena','Imani','Lucia','Chloe','Leila','Sienna','Anika','Evelyn','Iris','Grace','Fatima','Naomi','Keira','Yuna','Camila','Ada','Dalia'],

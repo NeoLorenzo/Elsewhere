@@ -1,4 +1,4 @@
-# Character model — version 0.2
+# Character model — version 0.3
 
 Implemented 19 October 2026. This is a transparent game model: it creates coherent individual differences and observable consequences without claiming clinical physiology, a validated psychological assessment, or historical world simulation.
 
@@ -34,7 +34,7 @@ The former `stats.smarts` field remains for save compatibility and now displays 
 
 ## Body, growth and physical consequences
 
-Each human stores current height in centimetres, weight in kilograms, body-fat percentage, adult-height potential and an adult weight target. Childhood measurements follow authored piecewise growth curves and converge to the chosen adult targets. Adult ageing gradually changes size and physical capacity. These curves are not growth-chart percentiles or individual medical predictions.
+The creator accepts any whole-number starting age from 0 to 120. All editable abilities, personality scores, health and measurements describe the person at that current age. There is no future target-age configuration. Each human stores current height in centimetres, weight in kilograms and body-fat percentage. Internal adult-height/weight potentials support authored childhood growth curves; setting current measurements infers these potentials rather than imposing future promises. Adult ageing gradually changes size and physical capacity. These curves are not growth-chart percentiles or individual medical predictions.
 
 Physical capacity combines strength, stamina, agility and coordination with current component health, height and estimated lean mass from weight/body composition. Each contribution is bounded. Training, athletic competitions and selected risky actions use capacity; measurements are not display-only. Training changes strength, stamina and body composition. A diet action can move adult weight gradually toward its target. A taller or heavier body is not universally superior, and body appearance does not set personality or cognitive ability.
 
@@ -59,12 +59,12 @@ This is a weighted game abstraction, not a simulation of organs, blood chemistry
 
 ## Historical calendar
 
-The creation form accepts a positive year plus BCE/CE. Internally, BCE years are negative integers and CE years positive; there is no year zero. A birthday advances directly from 1 BCE to 1 CE. Birth year, age and current calendar year remain consistent; journal, imports, NPC dates and generations preserve historical dates.
+New playable lives require a birth year of 1900 or later. The starting calendar year is birth year plus starting age. Parents can have earlier birth dates as family background. Country and city labels resolve against the birth year in the creator and the current year during play; a stable geographical identifier preserves the selected location through changes of state. See [country model](COUNTRIES.md) for coverage, research and simplifications.
 
-Arithmetic uses integer calendar offsets rather than browser `Date`. The supported range spans JavaScript safe integers with 256 years of headroom for relatives and lifespan, far beyond known human history. Choosing an ancient year changes the timeline. It does not yet replace modern countries, jobs, technology, laws, events or economic assumptions with era-specific ones.
+Arithmetic uses integer calendar offsets rather than browser `Date`, with 256 years of safe-integer headroom. Generic BCE helpers remain for reading older saves. Pre-1900 playable saves are moved to a 1900 birth date, shifting their timeline and relatives together, retaining progress and original-date metadata and recording the migration in the journal. This change is applied once. Country labels are era-aware; jobs, technology, laws, events and economic assumptions still share the existing game systems.
 
 ## Persistence and verification
 
 Version-1 saves are enriched with deterministic missing fields while retaining age, finances, journal and gameplay RNG. New fields are sanitised and bounded; derived personality domains and overall health are recomputed. A selected legacy heir carries their appearance, personality, IQ, body and birth year forward.
 
-Tests cover complete profiles, generation variation, idempotent upgrades, exact BCE crossing, customisation whitelists, age-aware growth, stable IQ, component-health reconciliation, individual NPC creation, soft trait effects, physique-dependent outcomes and legacy continuity. Browser checks cover custom creation, parent descriptions, profile tabs and save/reload.
+Tests cover complete profiles, generation variation, idempotent upgrades, legacy calendar arithmetic, customisation whitelists, current-age measurements and growth, stable IQ, component-health reconciliation, individual NPC creation, soft trait effects, physique-dependent outcomes and legacy continuity. Browser checks cover custom creation, parent descriptions, profile tabs and save/reload.
